@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "heliocontrol-Server",
+        "description": "Adresse des heliocontrol-Servers, der mit der Wärmepumpe verbunden ist.",
+        "data": {
+          "url": "URL",
+          "password": "Passwort"
+        },
+        "data_description": {
+          "url": "Zum Beispiel http://192.168.1.10:8080",
+          "password": "Nur wenn in heliocontrol ein Zugangsschutz eingerichtet ist"
+        }
+      },
+      "reauth_confirm": {
+        "title": "heliocontrol-Passwort",
+        "data": {
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Der heliocontrol-Server ist nicht erreichbar.",
+      "invalid_auth": "Passwort falsch oder fehlt."
+    },
+    "abort": {
+      "already_configured": "Diese Wärmepumpe ist bereits eingerichtet.",
+      "reauth_successful": "Passwort aktualisiert."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "firmware": { "name": "Firmware" }
+    },
+    "button": {
+      "refresh": { "name": "Aktualisieren" },
+      "reset_fault": { "name": "Entstören" },
+      "sync_clock": { "name": "Zeit synchronisieren" }
+    }
+  }
+}

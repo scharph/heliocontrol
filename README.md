@@ -52,6 +52,30 @@ make run-sim          # simulated controller + server, writes allowed
 
 ## Home Assistant
 
+There are two ways to connect Home Assistant. Use one of them, not both, or
+every entity shows up twice.
+
+### Custom integration (recommended)
+
+`custom_components/heliocontrol` is a native integration that talks to the
+heliocontrol server's API and live event stream. It needs no MQTT broker.
+
+1. Install it. Either:
+   - **HACS:** *Custom repositories* → this repository, category *Integration*, or
+   - **manually:** copy `custom_components/heliocontrol` into your Home Assistant
+     `config/custom_components/`.
+2. Restart Home Assistant.
+3. Go to *Settings → Devices & services → Add integration → Heliotherm (heliocontrol)*.
+4. Enter the server URL, e.g. `http://192.168.1.10:8080`, plus the password if
+   you enabled access protection.
+
+You get the same entities as the MQTT variant below, named in Home Assistant's
+language (German or English). Updates are pushed live, with a 60 s polling
+fallback. When the pages or read-only mode change on the server, the entry
+reloads by itself.
+
+### MQTT discovery
+
 Enable MQTT in *Settings* (broker URL, user, password). The heat pump appears
 as the device **Heliotherm** with:
 
@@ -104,7 +128,11 @@ web/                Angular 22 app (zoneless, standalone, signals)
 ```
 
 `make test` runs the Go tests (including end-to-end tests against the
-simulator and an embedded MQTT broker) and the web unit tests. `make dev`
+simulator and an embedded MQTT broker) and the web unit tests. `make test-ha`
+runs the Home Assistant integration tests (`tests/homeassistant`): they build
+the server and the simulator, start both, and drive the integration inside a
+Home Assistant test instance (needs Go, plus Python with
+`pytest-homeassistant-custom-component`; Linux or macOS). `make dev`
 starts the Angular dev server with a proxy to the API on :8080.
 
 `tools/golden/golden.ps1` regenerates `internal/frame/testdata/golden.txt` from

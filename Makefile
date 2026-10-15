@@ -1,6 +1,6 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: all web server sim cli test run-sim dev clean
+.PHONY: all web server sim cli test test-ha run-sim dev clean
 
 all: web server
 
@@ -20,6 +20,10 @@ test:
 	go vet ./...
 	go test ./...
 	cd web && npx ng test --watch=false
+
+# Home Assistant integration (pip install pytest-homeassistant-custom-component)
+test-ha:
+	python -m pytest
 
 # simulator + server, UI on http://localhost:8080
 run-sim: server sim
