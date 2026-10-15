@@ -18,11 +18,13 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}"
 
 # --- runtime ----------------------------------------------------------------
 FROM alpine:3.22
-RUN apk add --no-cache tzdata ca-certificates && adduser -D -u 1000 helio
-USER helio
+RUN apk add --no-cache tzdata ca-certificates su-exec && adduser -D -u 1000 helio
 WORKDIR /data
 COPY --from=server /out/heliocontrol /usr/local/bin/heliocontrol
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENV TZ=Europe/Vienna
 EXPOSE 8080
 VOLUME /data
-ENTRYPOINT ["heliocontrol", "-config", "/data/heliocontrol.yaml"]
+# starts as root only to fix /data ownership, then runs as user "helio"
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["heliocontrol", "-config", "/data/heliocontrol.yaml", "-data", "/data"]

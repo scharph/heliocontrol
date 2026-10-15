@@ -39,7 +39,10 @@ cp heliocontrol.example.yaml heliocontrol.yaml   # set device.host
 docker compose up -d                              # or: make all && bin/heliocontrol
 ```
 
-Open <http://localhost:8080>. With Docker, put `heliocontrol.yaml` into `./data/`.
+Open <http://localhost:8080>. With Docker, everything lives in `./data/`: put
+`heliocontrol.yaml` there (or start without one and set the heat pump address
+under *Settings*, which writes the file). The container fixes the ownership of
+`./data` on start, so it may also be created by Docker.
 
 To try it without a heat pump:
 

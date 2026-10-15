@@ -28,6 +28,7 @@ var version = "dev"
 
 func main() {
 	cfgPath := flag.String("config", "heliocontrol.yaml", "configuration file (created on first save)")
+	dataDir := flag.String("data", "", "data directory (overrides dataDir in the configuration)")
 	debug := flag.Bool("debug", false, "log protocol traffic")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -40,20 +41,23 @@ func main() {
 		level = slog.LevelDebug
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(*cfgPath, log); err != nil {
+	if err := run(*cfgPath, *dataDir, log); err != nil {
 		log.Error("fatal", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(cfgPath string, log *slog.Logger) error {
+func run(cfgPath, dataDir string, log *slog.Logger) error {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return err
 	}
 	c := cfg.Get()
+	if dataDir != "" {
+		c.DataDir = dataDir
+	}
 	if err := os.MkdirAll(c.DataDir, 0o755); err != nil {
-		return err
+		return fmt.Errorf("create data directory %q (must be writable by this user): %w", c.DataDir, err)
 	}
 	st, err := store.Open(filepath.Join(c.DataDir, "heliocontrol.db"))
 	if err != nil {
