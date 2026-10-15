@@ -1,0 +1,23 @@
+# local data and captures (may contain controller IDs / device dumps)
+captures/
+data/
+data-dev/
+heliocontrol.yaml
+*.db
+
+# binaries
+bin/
+/heliocontrol
+/*.exe
+
+# web build output: only the placeholder is committed so `go build` works
+# without a UI build; the real UI is built into web/dist/browser
+web/dist/*
+!web/dist/browser/
+web/dist/browser/*
+!web/dist/browser/.gitkeep
+web/node_modules/
+web/.angular/
+
+*.tmp
+*~

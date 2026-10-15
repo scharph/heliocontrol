@@ -1,0 +1,10 @@
+# Development: server against the simulator (bin/heliosim -listen 127.0.0.1:4001).
+listen: 127.0.0.1:8080
+dataDir: data-dev
+device:
+  type: tcp
+  host: 127.0.0.1
+  port: 4001
+  autoConnect: true
+pollSeconds: 10
+readOnly: false   # the simulator may be written to

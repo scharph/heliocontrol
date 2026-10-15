@@ -1,0 +1,11 @@
+services:
+  heliocontrol:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      # the controller clock and trend timestamps are local time
+      TZ: Europe/Vienna

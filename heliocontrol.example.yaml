@@ -1,0 +1,30 @@
+# heliocontrol configuration. Everything except listen/dataDir can also be
+# changed in the web UI (Settings), which rewrites this file.
+
+listen: ":8080"        # HTTP address of the web UI and API
+dataDir: data          # SQLite database (recordings, trend data, message log)
+
+device:
+  type: tcp            # tcp = Heliotherm (W)LAN modem, serial = RS232 "Modem COM" port
+  host: 10.0.0.5       # address of the LAN modem
+  port: 4001           # the modem's TCP port
+  # serialPort: COM1   # for type: serial (19200 baud, 8N1, null-modem cable)
+  # baud: 19200
+  expectedId: 0        # refuse to connect unless the controller reports this ID (0 = off)
+  autoConnect: true
+
+pollSeconds: 15        # refresh interval of the live values (minimum 10)
+
+# Safety: with readOnly nothing is ever written to the heat pump (enforced in
+# the API and again in the protocol client). Default: true.
+readOnly: true
+expertMode: false      # allow changing any writable setup point on the "All points" page
+trendPauseDuringDownload: false
+
+mqtt:                  # Home Assistant via MQTT discovery
+  enabled: false
+  broker: tcp://homeassistant.local:1883
+  username: ""
+  password: ""
+  discoveryPrefix: homeassistant
+  topicPrefix: heliocontrol
