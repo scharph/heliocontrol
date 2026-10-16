@@ -75,6 +75,14 @@ import { Toasts } from '../core/toast';
             <h2>{{ 'set_safety' | t }}</h2>
             <label class="check"><input type="checkbox" [checked]="s.readOnly" (change)="toggleReadOnly()" /><strong>{{ 'set_read_only' | t }}</strong></label>
             <label class="check"><input type="checkbox" [checked]="s.expertMode" (change)="set({ expertMode: !s.expertMode })" />{{ 'set_expert' | t }}</label>
+            <label class="field">
+              {{ 'set_write_budget' | t }}
+              <input type="number" min="-1" [value]="s.writeBudgetPerDay || 48" (input)="set({ writeBudgetPerDay: num($event) })" style="width: 90px" />
+            </label>
+            <label class="field">
+              {{ 'set_history_days' | t }}
+              <input type="number" min="1" [value]="s.historyDays" (input)="set({ historyDays: num($event) })" style="width: 90px" />
+            </label>
             <label class="check">
               <input type="checkbox" [checked]="s.trendPauseDuringDownload" (change)="set({ trendPauseDuringDownload: !s.trendPauseDuringDownload })" />{{
                 'set_trend_pause' | t
@@ -101,6 +109,13 @@ import { Toasts } from '../core/toast';
                   [placeholder]="s.mqttPasswordSet ? ('set_mqtt_password_keep' | t) : ''" />
               </label>
             </div>
+            <label class="field">
+              {{ 'set_mqtt_language' | t }}
+              <select (change)="mq({ language: $any(val($event)) })">
+                <option value="en" [selected]="s.mqtt.language !== 'de'">English</option>
+                <option value="de" [selected]="s.mqtt.language === 'de'">Deutsch</option>
+              </select>
+            </label>
             <div class="row">
               <label class="field grow">
                 {{ 'set_mqtt_discovery' | t }}

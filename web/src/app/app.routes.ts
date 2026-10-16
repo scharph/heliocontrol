@@ -26,6 +26,7 @@ export const routes: Routes = [
       { path: 'timeprograms', loadComponent: () => import('./pages/time-programs').then((m) => m.TimeProgramsPage) },
       { path: 'recorder', loadComponent: () => import('./pages/recorder').then((m) => m.RecorderPage) },
       { path: 'recorder/:id', loadComponent: () => import('./pages/recorder').then((m) => m.RecorderPage) },
+      { path: 'insights', loadComponent: () => import('./pages/insights').then((m) => m.InsightsPage) },
       { path: 'trend', loadComponent: () => import('./pages/trend').then((m) => m.TrendPage) },
       { path: 'points', loadComponent: () => import('./pages/points').then((m) => m.PointsPage) },
       { path: 'log', loadComponent: () => import('./pages/log').then((m) => m.LogPage) },

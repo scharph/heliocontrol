@@ -32,6 +32,46 @@ integration over MQTT.
 | — | **All points** page (all 96 MP / 392 SP) and an expert mode to change any writable setup point |
 | — | Read-only mode, German/English, dark mode, phone layout |
 
+## Beyond homeControl
+
+These features follow from the [design review](docs/design-review.md), which
+also explains the heating concepts behind them.
+
+- **Temporary values.** Change a setpoint for a while (e.g. hot water +8 K for
+  60 min), and heliocontrol restores the original automatically, even after a
+  restart. Available on the overview page, via `POST /api/overrides`, and as the
+  Home Assistant service `heliocontrol.set_temporary`. This is the
+  controller-side equivalent of SG-Ready "recommended on", for PV surplus or
+  cheap hours.
+- **Write budget.** Each setup point may be changed at most 48 times per day
+  (configurable), which protects the controller's EEPROM from runaway
+  automations. Writing the current value again sends nothing.
+- **Insights.** Always-on history (stored on change, kept 400 days) gives
+  compressor starts per day (exact, from the controller's start counter),
+  runtime, cycle length, flow, return and spread while running, and the
+  deviation from the return target. Hints point out short cycling or a heating
+  curve that is higher than necessary.
+- **Lighter polling.** Measuring points come from one multi-read; settings are
+  re-read every 10 minutes, after writes, and on *Refresh*. That cuts the bus
+  time per poll from 2–3 s to a few hundred ms.
+
+Example: store PV surplus in the hot water tank (Home Assistant):
+
+```yaml
+automation:
+  - alias: Hot water boost on PV surplus
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.grid_export_power
+        above: 2500
+        for: { minutes: 10 }
+    actions:
+      - action: heliocontrol.set_temporary
+        target:
+          entity_id: number.heliotherm_hot_water_target
+        data: { value: 56, duration: 60 }
+```
+
 ## Quick start
 
 ```sh

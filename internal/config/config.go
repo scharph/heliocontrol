@@ -31,6 +31,8 @@ type MQTT struct {
 	ClientID        string `yaml:"clientId" json:"clientId"`
 	DiscoveryPrefix string `yaml:"discoveryPrefix" json:"discoveryPrefix"`
 	TopicPrefix     string `yaml:"topicPrefix" json:"topicPrefix"`
+	// Language of entity names and option labels in Home Assistant ("de" or "en").
+	Language string `yaml:"language" json:"language"`
 }
 
 type Config struct {
@@ -46,6 +48,11 @@ type Config struct {
 	// ReadOnly (the default) refuses every command that would change the heat
 	// pump. It is enforced in the API and again in the device client.
 	ReadOnly *bool `yaml:"readOnly" json:"readOnly"`
+	// WriteBudgetPerDay limits writes per setup point and day (protects the
+	// controller's EEPROM from runaway automations). 0 = default (48), -1 = unlimited.
+	WriteBudgetPerDay int `yaml:"writeBudgetPerDay" json:"writeBudgetPerDay"`
+	// HistoryDays is how long the continuous history is kept (default 400).
+	HistoryDays int `yaml:"historyDays" json:"historyDays"`
 	// ExpertMode allows writing any writable setup point from the "all points" page.
 	ExpertMode   bool   `yaml:"expertMode" json:"expertMode"`
 	PasswordHash string `yaml:"passwordHash" json:"-"`
@@ -63,6 +70,9 @@ func (c *Config) applyDefaults() {
 	if c.PollSeconds < 10 {
 		c.PollSeconds = 15
 	}
+	if c.HistoryDays <= 0 {
+		c.HistoryDays = 400
+	}
 	if c.ReadOnly == nil {
 		on := true
 		c.ReadOnly = &on
@@ -76,6 +86,20 @@ func (c *Config) applyDefaults() {
 	if c.MQTT.TopicPrefix == "" {
 		c.MQTT.TopicPrefix = "heliocontrol"
 	}
+	if c.MQTT.Language != "de" {
+		c.MQTT.Language = "en"
+	}
+}
+
+// WriteBudget returns the effective daily write limit per setup point (-1 = unlimited).
+func (c Config) WriteBudget() int {
+	switch {
+	case c.WriteBudgetPerDay < 0:
+		return -1
+	case c.WriteBudgetPerDay == 0:
+		return 48
+	}
+	return c.WriteBudgetPerDay
 }
 
 // IsReadOnly reports whether writes to the heat pump are disabled.

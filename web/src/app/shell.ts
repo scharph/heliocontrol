@@ -162,6 +162,7 @@ export class Shell implements OnDestroy {
   protected nav: { path: string; label: Key }[] = [
     { path: '/overview', label: 'nav_overview' },
     { path: '/timeprograms', label: 'nav_timeprograms' },
+    { path: '/insights', label: 'nav_insights' },
     { path: '/recorder', label: 'nav_recorder' },
     { path: '/trend', label: 'nav_trend' },
     { path: '/points', label: 'nav_points' },

@@ -28,6 +28,22 @@ const curveKeys: CurveKey[] = ['limit', 'atLimit', 'at0', 'atMinus15', 'boost', 
         </div>
       }
 
+      @if (state.overrides().length) {
+        <div class="card tmp-list">
+          <h3>⏱ {{ 'tmp_title' | t }}</h3>
+          @for (o of state.overrides(); track o.sp) {
+            <div class="row">
+              <strong>{{ spLabel(o.sp) }}</strong>
+              <span class="num">{{ o.value }} → {{ o.original }}</span>
+              <span class="muted">{{ 'tmp_until' | t }} {{ hhmm(o.until) }}{{ o.source ? ' · ' + o.source : '' }}</span>
+              <span class="spacer"></span>
+              <button class="small" (click)="endTemporary(o.sp)" [disabled]="!state.canWrite()">{{ 'tmp_end' | t }}</button>
+            </div>
+          }
+          <div class="muted small">{{ 'tmp_hint' | t }}</div>
+        </div>
+      }
+
       <div class="tabs">
         @for (p of state.panels(); track p.id) {
           <button [class.active]="p.id === current()?.id" (click)="select(p)">
@@ -92,6 +108,8 @@ const curveKeys: CurveKey[] = ['limit', 'atLimit', 'at0', 'atMinus15', 'boost', 
   `,
   styles: `
     .sub { font-size: 12px; }
+    .small { font-size: 12px; }
+    .tmp-list { display: flex; flex-direction: column; gap: 6px; border-color: var(--warn); }
     .curve-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; margin-top: 8px; }
     .params { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .params input { width: 90px; }
@@ -198,6 +216,27 @@ export class OverviewPage {
       this.toasts.error(e);
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  /** Label of a setup point from any page. */
+  protected spLabel(sp: number): string {
+    for (const p of this.state.panels()) {
+      const it = p.items.find((i) => i.kind === 'sp' && i.id === sp);
+      if (it) return this.i18n.text(it.label);
+    }
+    return `SP ${sp}`;
+  }
+
+  protected hhmm(iso: string) {
+    return new Date(iso).toLocaleTimeString(this.i18n.locale(), { hour: '2-digit', minute: '2-digit' });
+  }
+
+  protected async endTemporary(sp: number) {
+    try {
+      await this.api.cancelTemporary(sp);
+    } catch (e) {
+      this.toasts.error(e);
     }
   }
 

@@ -4,6 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import {
   ClockInfo,
   LogEntry,
+  Insights,
+  Override,
   Point,
   Recording,
   Series,
@@ -78,6 +80,18 @@ export class Api {
   }
   override(id: number, value: number, auto: boolean) {
     return this.post<void>(`/api/mp/${id}/override`, { value, auto });
+  }
+  setTemporary(sp: number, value: number, minutes: number) {
+    return this.post<Override>("/api/overrides", { sp, value, minutes, source: "Web-UI" });
+  }
+  cancelTemporary(sp: number) {
+    return firstValueFrom(this.http.delete<void>(`/api/overrides/${sp}`));
+  }
+  insights(days = 14) {
+    return this.get<Insights>(`/api/insights?days=${days}`);
+  }
+  history(points: string[], from: number, to: number, max = 600) {
+    return this.get<Series[]>(`/api/history?points=${points.join(",")}&from=${from}&to=${to}&max=${max}`);
   }
   resetFault() {
     return this.post<void>('/api/fault/reset');

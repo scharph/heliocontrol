@@ -60,6 +60,37 @@ import { Toasts } from '../core/toast';
           </div>
         }
       }
+      @if (item().writable) {
+        @if (temporary(); as o) {
+          <div class="tmp row">
+            <span class="badge warn" [title]="'tmp_hint' | t">⏱ {{ 'tmp_until' | t }} {{ hhmm(o.until) }} · {{ 'tmp_then' | t }} {{ show(o.original) }}</span>
+            <button class="small" (click)="endTemporary()" [disabled]="!state.canWrite() || saving()">{{ 'tmp_end' | t }}</button>
+          </div>
+        } @else if (state.canWrite()) {
+          @if (tmpOpen()) {
+            <div class="tmp row">
+              @if (item().display === 'enum') {
+                <select (change)="tmpValue.set(+val($event))">
+                  @for (o of options(); track o.value) {
+                    @if (!o.disabled) {
+                      <option [value]="o.value" [selected]="o.value === tmpValue()">{{ o.label }}</option>
+                    }
+                  }
+                </select>
+              } @else {
+                <input type="number" class="num short" [step]="item().step ?? 1" [value]="tmpValue() ?? ''" (input)="tmpValue.set(num($event))" />
+              }
+              <span class="muted">{{ 'tmp_for' | t }}</span>
+              <input type="number" class="num short" min="1" max="1440" [value]="tmpMinutes()" (input)="tmpMinutes.set(num($event) ?? 60)" />
+              <span class="muted">min</span>
+              <button class="small primary" (click)="applyTemporary()" [disabled]="saving() || tmpValue() === undefined">{{ 'tmp_apply' | t }}</button>
+              <button class="small" (click)="tmpOpen.set(false)">✕</button>
+            </div>
+          } @else {
+            <button class="small link" (click)="openTemporary()">⏱ {{ 'tmp_set' | t }}</button>
+          }
+        }
+      }
     </div>
   `,
   styles: `
@@ -82,6 +113,11 @@ import { Toasts } from '../core/toast';
     .edit input { width: 96px; font-size: 16px; font-weight: 600; }
     .range { font-size: 11px; }
     select { font-size: 15px; }
+    .tmp { gap: 4px; font-size: 12px; margin-top: 2px; }
+    .tmp input.short { width: 64px; padding: 2px 6px; }
+    .tmp select { font-size: 12px; padding: 2px 4px; }
+    .link { border: none; background: none; padding: 0; color: var(--muted); align-self: flex-start; }
+    .link:hover { color: var(--accent); }
   `,
 })
 export class ItemCard {
@@ -130,6 +166,60 @@ export class ItemCard {
         return fmtNumber(v, this.i18n.locale(), Math.max(1, decimals(it)));
     }
   });
+
+  protected temporary = computed(() => (this.item().kind === 'sp' ? this.state.override(this.item().id) : undefined));
+  protected tmpOpen = signal(false);
+  protected tmpValue = signal<number | undefined>(undefined);
+  protected tmpMinutes = signal(60);
+
+  protected val(e: Event): string {
+    return (e.target as HTMLInputElement).value;
+  }
+  protected hhmm(iso: string) {
+    return new Date(iso).toLocaleTimeString(this.i18n.locale(), { hour: '2-digit', minute: '2-digit' });
+  }
+  /** A value as the user sees it (option label for modes). */
+  protected show(v: number): string {
+    const it = this.item();
+    if (it.display === 'enum') {
+      const o = it.options?.[v - (it.offset ?? 0)];
+      return o ? this.i18n.text(o) : String(v);
+    }
+    return `${fmtNumber(v, this.i18n.locale(), 2)}${it.unit ? ' ' + it.unit : ''}`;
+  }
+
+  protected openTemporary() {
+    this.tmpValue.set(this.value());
+    this.tmpOpen.set(true);
+  }
+
+  protected async applyTemporary() {
+    const v = this.tmpValue();
+    if (v === undefined) return;
+    const it = this.item();
+    this.saving.set(true);
+    try {
+      const o = await this.api.setTemporary(it.id, clamp(v, it.min, it.max), this.tmpMinutes());
+      this.state.setSP(it.id, o.value);
+      this.toasts.ok(`${this.label()}: ${this.show(o.value)} ${this.i18n.t('tmp_until')} ${this.hhmm(o.until)}`);
+      this.tmpOpen.set(false);
+    } catch (e) {
+      this.toasts.error(e);
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  protected async endTemporary() {
+    this.saving.set(true);
+    try {
+      await this.api.cancelTemporary(this.item().id);
+    } catch (e) {
+      this.toasts.error(e);
+    } finally {
+      this.saving.set(false);
+    }
+  }
 
   protected num(e: Event): number | undefined {
     const v = (e.target as HTMLInputElement).valueAsNumber;

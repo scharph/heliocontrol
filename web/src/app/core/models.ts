@@ -85,6 +85,43 @@ export interface Snapshot {
   pollSeconds: number;
   job?: Job | null;
   recording?: Recording | null;
+  overrides: Override[];
+}
+
+/** A temporary setpoint that heliocontrol restores automatically. */
+export interface Override {
+  sp: number;
+  value: number;
+  original: number;
+  until: string;
+  created: string;
+  source?: string;
+}
+
+export interface DayInsight {
+  date: string;
+  coverage: number;
+  starts?: number;
+  startsSource?: "counter" | "samples";
+  runtimeHours?: number;
+  avgCycleMinutes?: number;
+  outdoor?: number;
+  flowRunning?: number;
+  returnRunning?: number;
+  spread?: number;
+  targetRunning?: number;
+  deviation?: number;
+}
+
+export interface Hint {
+  level: "info" | "warn";
+  title: Text;
+  detail: Text;
+}
+
+export interface Insights {
+  days: DayInsight[];
+  hints: Hint[];
 }
 
 export interface Values {
@@ -185,6 +222,8 @@ export interface Settings {
     autoConnect: boolean;
   };
   pollSeconds: number;
+  writeBudgetPerDay: number;
+  historyDays: number;
   trendPauseDuringDownload: boolean;
   readOnly: boolean;
   expertMode: boolean;
@@ -196,6 +235,7 @@ export interface Settings {
     clientId: string;
     discoveryPrefix: string;
     topicPrefix: string;
+    language: "de" | "en";
   };
   passwordSet: boolean;
   mqttPasswordSet: boolean;

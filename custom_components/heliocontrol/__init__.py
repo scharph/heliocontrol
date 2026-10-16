@@ -7,11 +7,22 @@ import aiohttp
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .api import AuthError, HeliocontrolClient, HeliocontrolError
-from .const import CONF_URL, PLATFORMS
+from .const import CONF_URL, DOMAIN, PLATFORMS
 from .coordinator import HeliocontrolConfigEntry, HeliocontrolCoordinator, structure
+from .services import async_register_services
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the integration's services."""
+    async_register_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: HeliocontrolConfigEntry) -> bool:
@@ -29,6 +40,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeliocontrolConfigEntry)
 
     coordinator = HeliocontrolCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
+    try:
+        coordinator.entities = await client.entities()
+    except HeliocontrolError as err:
+        raise ConfigEntryNotReady(str(err)) from err
     entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

@@ -61,6 +61,18 @@ class HeliocontrolClient:
     async def state(self) -> dict[str, Any]:
         return await self._request("GET", "/api/state")
 
+    async def entities(self) -> list[dict[str, Any]]:
+        """Home Assistant entity descriptions built by the server (internal/haentity)."""
+        return await self._request("GET", "/api/ha/entities")
+
+    async def set_temporary(self, sp_id: int, value: float, minutes: float, source: str = "") -> dict[str, Any]:
+        return await self._request(
+            "POST", "/api/overrides", {"sp": sp_id, "value": value, "minutes": minutes, "source": source}
+        )
+
+    async def cancel_temporary(self, sp_id: int) -> None:
+        await self._request("DELETE", f"/api/overrides/{sp_id}")
+
     async def write_sp(self, sp_id: int, value: float) -> float:
         res = await self._request("PUT", f"/api/sp/{sp_id}", {"value": value})
         return res["value"]
