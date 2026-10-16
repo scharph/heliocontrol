@@ -1,5 +1,26 @@
 # heliocontrol
 
+## What's better than the old homeControl.exe
+
+| | homeControl 2.1 (Windows) | heliocontrol |
+|---|---|---|
+| **Runs on** | One Windows PC with .NET 4.0, open the whole time | A server (Docker, Linux, Windows, NAS); use it from any browser, phone included |
+| **License** | License code per heat pump serial number, from the installer | None needed (the old check never involved the controller) |
+| **Access protection** | Local password with a hard-coded `SuperUser` bypass | Optional login with a bcrypt-hashed password, session cookies |
+| **Remote access** | Port 4001 forwarded through the router, so the heat pump was open to the internet without a password | Port 4001 stays in the LAN; reach the web UI via VPN or Home Assistant |
+| **Safety** | Every change goes straight to the heat pump | Read-only by default (enforced twice); writes checked against the controller's limits; daily write limit per setting; writing the current value again sends nothing |
+| **Smart home** | None | Home Assistant: native integration or MQTT discovery, with sensors, mode selects, setpoints, buttons |
+| **Temporary changes** | Not possible | "Hot water +8 K for 60 min" is restored automatically, even after a restart; the basis for PV surplus and dynamic tariffs |
+| **History** | Only on demand (WEB-Online) or the controller's small trend buffer | Always-on history (400 days), stored on change |
+| **Efficiency analysis** | None | Insights: compressor starts, runtime, cycle length, temperatures while running, deviation from target, hints for short cycling or a high heating curve |
+| **Data shown** | Fixed tabs; some labels wrong for newer firmware | Same pages, built from the controller's own descriptions; unused points hidden; a diagnostics page with 28 extra values (hot gas, subcooling, inverter …); all 488 points browsable |
+| **Live updates** | Manual refresh, or a timer that re-read everything | Values pushed to the browser; settings read rarely, so the controller's line is mostly free |
+| **Reliability** | Replies could mix up after timeouts; garbled umlauts | Each reply matched to its request; correct text decoding; reconnect with backoff |
+| **Data files** | Proprietary `.hwo` / `.htd` | Imports those, exports CSV, and stores recordings in a database |
+| **Bugs fixed** | Brine/water tabs show the heating pump as compressor; trend end times in a 12-hour clock | Fixed |
+| **Languages, look** | German/English, fixed window | German/English, dark mode, phone layout |
+| **Tested** | — | Protocol checked against the original DLL, end-to-end tests with a simulated heat pump, MQTT broker and Home Assistant, verified read-only on a real controller |
+
 A self-hosted replacement for **Heliotherm homeControl**, the discontinued
 Windows tool for Heliotherm heat pumps with the *web control* controller.
 heliocontrol has a Go server, an Angular web UI, and a Home Assistant
