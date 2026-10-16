@@ -12,6 +12,8 @@ integration over MQTT.
 - The protocol is documented in [docs/protocol.md](docs/protocol.md). It is
   *not* Modbus but a proprietary ASCII protocol on TCP port 4001.
 
+![heliocontrol overview with heating curve](docs/screenshot.png)
+
 ## Features (homeControl → heliocontrol)
 
 | homeControl | heliocontrol |
