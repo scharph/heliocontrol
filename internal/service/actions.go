@@ -29,56 +29,6 @@ func (s *Service) writableClient() (*device.Client, error) {
 	return s.Client()
 }
 
-// WriteSP changes a setup point. Points on the UI pages may always be changed;
-// any other writable point only in expert mode. Values are checked against the
-// limits the controller reports.
-func (s *Service) WriteSP(ctx context.Context, id int, v float64) (float64, error) {
-	c, err := s.writableClient()
-	if err != nil {
-		return 0, err
-	}
-	s.mu.RLock()
-	item, onPage := catalog.FindWritable(s.snap.Panels, id)
-	meta, known := s.meta[protocol.SP][id]
-	s.mu.RUnlock()
-	switch {
-	case onPage:
-		if item.Display == catalog.Enum && slices.Contains(item.NotSelectable, int(v)) {
-			return 0, invalid("value %v cannot be selected for %s", v, item.Label.EN)
-		}
-		if item.Max > item.Min && (v < item.Min || v > item.Max) {
-			return 0, invalid("value %v outside %v..%v", v, item.Min, item.Max)
-		}
-	case s.cfg.Get().ExpertMode && known && meta.WR:
-	default:
-		return 0, invalid("setup point %d may not be changed (enable expert mode for points outside the pages)", id)
-	}
-	if known && meta.Max > meta.Min && (v < meta.Min || v > meta.Max) {
-		return 0, invalid("value %v outside the controller limits %v..%v", v, meta.Min, meta.Max)
-	}
-	if known && !meta.WR {
-		return 0, invalid("setup point %d is read-only on the controller", id)
-	}
-	got, err := c.WriteSP(ctx, id, v)
-	if err != nil {
-		s.event("error", "Einstellung nicht gespeichert", fmt.Sprintf("SP %d = %v: %v", id, v, err))
-		return 0, err
-	}
-	s.mu.Lock()
-	s.snap.SP[id] = got
-	s.mu.Unlock()
-	name := meta.Name
-	if onPage {
-		name = item.Label.DE
-	}
-	s.event("info", "Einstellung gespeichert", fmt.Sprintf("%s (SP %d) = %v", name, id, got))
-	s.Bus.Publish(Event{Type: "values", Data: s.Values()})
-	if slices.Contains(catalog.ConfigPoints, id) {
-		go s.Reconnect() // installation changed: pages must be rebuilt
-	}
-	return got, nil
-}
-
 // ResetFault acknowledges an active fault ("Entstören", SP 14 = 1).
 func (s *Service) ResetFault(ctx context.Context) error {
 	c, err := s.writableClient()

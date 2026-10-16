@@ -25,6 +25,7 @@ import (
 
 	"heliocontrol/internal/config"
 	"heliocontrol/internal/device"
+	"heliocontrol/internal/haentity"
 	"heliocontrol/internal/legacy"
 	"heliocontrol/internal/protocol"
 	"heliocontrol/internal/service"
@@ -66,6 +67,10 @@ func (s *Server) Handler() http.Handler {
 		return writeJSON(w, map[string]string{"version": s.version})
 	})
 	h("GET /api/state", func(w http.ResponseWriter, r *http.Request) error { return writeJSON(w, s.svc.Snapshot()) })
+	h("GET /api/ha/entities", func(w http.ResponseWriter, r *http.Request) error {
+		snap := s.svc.Snapshot()
+		return writeJSON(w, haentity.Build(snap.Panels, snap.ReadOnly))
+	})
 	mux.HandleFunc("GET /api/events", s.events)
 	h("POST /api/connect", func(w http.ResponseWriter, r *http.Request) error { s.svc.Connect(); return noContent(w) })
 	h("POST /api/disconnect", func(w http.ResponseWriter, r *http.Request) error { s.svc.Disconnect(); return noContent(w) })
@@ -86,6 +91,18 @@ func (s *Server) Handler() http.Handler {
 		return accepted(w)
 	})
 	h("PUT /api/sp/{id}", s.writeSP)
+	h("GET /api/overrides", func(w http.ResponseWriter, r *http.Request) error { return writeJSON(w, s.svc.Overrides()) })
+	h("POST /api/overrides", s.setOverride)
+	h("DELETE /api/overrides/{sp}", func(w http.ResponseWriter, r *http.Request) error {
+		sp, err := pathInt(r, "sp")
+		if err != nil {
+			return err
+		}
+		if err := s.svc.CancelTemporary(r.Context(), int(sp)); err != nil {
+			return err
+		}
+		return noContent(w)
+	})
 	h("POST /api/mp/{id}/override", s.override)
 	h("POST /api/fault/reset", func(w http.ResponseWriter, r *http.Request) error {
 		if err := s.svc.ResetFault(r.Context()); err != nil {
@@ -149,6 +166,18 @@ func (s *Server) Handler() http.Handler {
 	h("PATCH /api/recordings/{id}", s.renameRecording)
 	h("DELETE /api/recordings/{id}", s.deleteRecording)
 
+	h("GET /api/insights", func(w http.ResponseWriter, r *http.Request) error {
+		days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+		if days == 0 {
+			days = 14
+		}
+		in, err := s.svc.Insights(r.Context(), days)
+		if err != nil {
+			return err
+		}
+		return writeJSON(w, in)
+	})
+	h("GET /api/history", s.history)
 	h("GET /api/log", func(w http.ResponseWriter, r *http.Request) error {
 		evs, err := s.store.Events(r.Context(), 500)
 		if err != nil {
@@ -230,6 +259,8 @@ func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
 		code = http.StatusServiceUnavailable
 	case errors.Is(err, service.ErrBusy):
 		code = http.StatusConflict
+	case errors.Is(err, service.ErrWriteBudget):
+		code = http.StatusTooManyRequests
 	case errors.Is(err, store.ErrNotFound):
 		code = http.StatusNotFound
 	case errors.Is(err, context.Canceled):
@@ -401,6 +432,30 @@ func (s *Server) writeSP(w http.ResponseWriter, r *http.Request) error {
 	return writeJSON(w, map[string]float64{"value": got})
 }
 
+func (s *Server) setOverride(w http.ResponseWriter, r *http.Request) error {
+	var body struct {
+		SP      *int     `json:"sp"`
+		Value   *float64 `json:"value"`
+		Minutes float64  `json:"minutes"`
+		Source  string   `json:"source"`
+	}
+	if err := decode(r, &body); err != nil {
+		return err
+	}
+	if body.SP == nil || body.Value == nil {
+		return badRequest("sp and value are required")
+	}
+	source := strings.ToValidUTF8(strings.TrimSpace(body.Source), "")
+	if len(source) > 60 {
+		source = source[:60]
+	}
+	o, err := s.svc.SetTemporary(r.Context(), *body.SP, *body.Value, time.Duration(body.Minutes*float64(time.Minute)), strings.ToValidUTF8(source, ""))
+	if err != nil {
+		return err
+	}
+	return writeJSON(w, o)
+}
+
 func (s *Server) override(w http.ResponseWriter, r *http.Request) error {
 	id, err := pathInt(r, "id")
 	if err != nil {
@@ -499,6 +554,41 @@ func (s *Server) recordingAction(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	return noContent(w)
+}
+
+// history: ?points=mp:0,mp:3&from=<ms>&to=<ms>&max=500 (default: the last 24 h)
+func (s *Server) history(w http.ResponseWriter, r *http.Request) error {
+	q := r.URL.Query()
+	var refs []store.PointRef
+	for _, p := range strings.Split(q.Get("points"), ",") {
+		if p == "" {
+			continue
+		}
+		ref, err := store.ParsePointRef(p)
+		if err != nil {
+			return badRequest("%v", err)
+		}
+		refs = append(refs, ref)
+	}
+	if len(refs) == 0 || len(refs) > 20 {
+		return badRequest("give 1 to 20 points, e.g. points=mp:0,mp:3")
+	}
+	to, from := parseTimeParam(q.Get("to")), parseTimeParam(q.Get("from"))
+	if to.IsZero() {
+		to = time.Now()
+	}
+	if from.IsZero() {
+		from = to.Add(-24 * time.Hour)
+	}
+	maxPts, _ := strconv.Atoi(q.Get("max"))
+	if maxPts <= 0 || maxPts > 5000 {
+		maxPts = 600
+	}
+	series, err := s.svc.History(r.Context(), refs, from, to, maxPts)
+	if err != nil {
+		return err
+	}
+	return writeJSON(w, series)
 }
 
 func (s *Server) recording(w http.ResponseWriter, r *http.Request) error {
@@ -679,11 +769,18 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	old := s.cfg.Get()
+	if in.ReadOnly != nil && *in.ReadOnly && !old.IsReadOnly() && s.svc.HasOverrides() {
+		return badRequest("temporary values are active and need write access to be restored; end them before switching to read-only mode")
+	}
 	cur, err := s.cfg.Update(func(c *config.Config) {
 		c.Device = in.Device
 		c.PollSeconds = in.PollSeconds
 		c.TrendPauseDuringDownload = in.TrendPauseDuringDownload
 		c.ExpertMode = in.ExpertMode
+		c.WriteBudgetPerDay = in.WriteBudgetPerDay
+		if in.HistoryDays > 0 {
+			c.HistoryDays = in.HistoryDays
+		}
 		if in.ReadOnly != nil {
 			c.ReadOnly = in.ReadOnly
 		}

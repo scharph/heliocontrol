@@ -8,6 +8,7 @@ import (
 	"net"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,6 +105,29 @@ func TestServiceReadOnly(t *testing.T) {
 	}
 }
 
+func TestTieredPolling(t *testing.T) {
+	svc, dev, ctx := newTestService(t, true)
+	c, err := svc.Client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return len(svc.PointMeta(protocol.SP)) > 0 })
+	before := dev.CommandCount("SP")
+	if err := svc.poll(ctx, c, false); err != nil {
+		t.Fatal(err)
+	}
+	if n := dev.CommandCount("SP") - before; n != 2 { // compressor state + running time
+		t.Fatalf("fast poll read %d setup points, want 2", n)
+	}
+	before = dev.CommandCount("SP")
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := dev.CommandCount("SP") - before; n < 20 {
+		t.Fatalf("full refresh read only %d setup points", n)
+	}
+}
+
 func TestServiceWrites(t *testing.T) {
 	svc, _, ctx := newTestService(t, false)
 	waitFor(t, func() bool { return len(svc.PointMeta(protocol.SP)) > 0 }) // point init job
@@ -150,5 +174,94 @@ func TestServiceWrites(t *testing.T) {
 	series, err := svc.store.Samples(ctx, rec.ID, time.Time{}, time.Time{})
 	if err != nil || len(series) != 2 {
 		t.Fatalf("samples %v %v", series, err)
+	}
+}
+
+func TestWriteBudgetAndNoOp(t *testing.T) {
+	svc, dev, ctx := newTestService(t, false)
+	waitFor(t, func() bool { return len(svc.PointMeta(protocol.SP)) > 0 })
+	svc.cfg.Update(func(c *config.Config) { c.WriteBudgetPerDay = 2 })
+
+	writes := func() int { return dev.CommandCount("SP") }
+	if _, err := svc.WriteSP(ctx, 69, 21); err != nil {
+		t.Fatal(err)
+	}
+	// same value again: acknowledged without a write (only the fresh read)
+	before := writes()
+	if _, err := svc.WriteSP(ctx, 69, 21); err != nil {
+		t.Fatal(err)
+	}
+	if n := writes() - before; n != 1 {
+		t.Fatalf("no-op write sent %d commands, want 1 read", n)
+	}
+	if _, err := svc.WriteSP(ctx, 69, 22); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.WriteSP(ctx, 69, 23); !errors.Is(err, ErrWriteBudget) {
+		t.Fatalf("third change should exceed the budget of 2: %v", err)
+	}
+	if !strings.Contains(dev.Handle(protocol.ReadSP(69))[0], "VAL=22,") {
+		t.Fatal("refused write reached the controller")
+	}
+}
+
+func TestTemporarySetpoints(t *testing.T) {
+	svc, dev, ctx := newTestService(t, false)
+	waitFor(t, func() bool { return len(svc.PointMeta(protocol.SP)) > 0 })
+	val := func() string { return dev.Handle(protocol.ReadSP(83))[0] }
+	if !strings.Contains(val(), "VAL=48,") {
+		t.Fatalf("unexpected start value %s", val())
+	}
+	o, err := svc.SetTemporary(ctx, 83, 55, time.Hour, "test")
+	if err != nil || o.Original != 48 || o.Value != 55 {
+		t.Fatalf("set: %+v %v", o, err)
+	}
+	// a second temporary value keeps the original
+	if o, _ = svc.SetTemporary(ctx, 83, 58, time.Hour, "test"); o.Original != 48 || !strings.Contains(val(), "VAL=58,") {
+		t.Fatalf("replace: %+v %s", o, val())
+	}
+	if _, err := svc.SetTemporary(ctx, 83, 55, time.Second, ""); err == nil {
+		t.Fatal("too short duration accepted")
+	}
+	// expire it and let the restore run
+	svc.mu.Lock()
+	ov := svc.overrides[83]
+	ov.Until = time.Now().Add(-time.Second)
+	svc.overrides[83] = ov
+	svc.mu.Unlock()
+	svc.restoreExpired(ctx, map[int]bool{})
+	if !strings.Contains(val(), "VAL=48,") || svc.HasOverrides() {
+		t.Fatalf("not restored: %s", val())
+	}
+
+	// a permanent write replaces a temporary value without restoring it later
+	svc.SetTemporary(ctx, 83, 52, time.Hour, "")
+	svc.WriteSP(ctx, 83, 50)
+	if svc.HasOverrides() || !strings.Contains(val(), "VAL=50,") {
+		t.Fatal("permanent write did not end the temporary value")
+	}
+}
+
+func TestTemporarySetpointSurvivesRestart(t *testing.T) {
+	svc, dev, ctx := newTestService(t, false)
+	waitFor(t, func() bool { return len(svc.PointMeta(protocol.SP)) > 0 })
+	if _, err := svc.SetTemporary(ctx, 83, 55, time.Hour, ""); err != nil {
+		t.Fatal(err)
+	}
+	// the persisted override, as a restarted server finds it
+	ovs, err := svc.store.Overrides(ctx)
+	if err != nil || len(ovs) != 1 || ovs[0].Original != 48 {
+		t.Fatalf("persisted: %+v %v", ovs, err)
+	}
+	ovs[0].Until = time.Now().Add(-time.Minute)
+	svc.store.SaveOverride(ctx, ovs[0])
+	restarted := New(svc.cfg, svc.store, svc.log)
+	rctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go restarted.Run(rctx)
+	waitFor(t, func() bool { return restarted.Snapshot().Status == Online && restarted.HasOverrides() })
+	restarted.restoreExpired(rctx, map[int]bool{})
+	if !strings.Contains(dev.Handle(protocol.ReadSP(83))[0], "VAL=48,") {
+		t.Fatal("expired override not restored after restart")
 	}
 }

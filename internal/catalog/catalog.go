@@ -59,7 +59,10 @@ type Item struct {
 	// Ratio items: Num / Den measuring points.
 	Num int `json:"num,omitempty"`
 	Den int `json:"den,omitempty"`
-	HA  HA  `json:"ha"`
+	// Volatile setup points change by themselves (states, timers) and are read
+	// on every poll; other setup points are settings, read rarely.
+	Volatile bool `json:"volatile,omitempty"`
+	HA       HA   `json:"ha"`
 }
 
 // HeatCurve references the setup points of one heating circuit's curve.
@@ -177,9 +180,9 @@ func mainPanel() Panel {
 			{Key: "request", Kind: protocol.MP, ID: 56, Label: t("Anforderung", "Request"), Display: Enum, Options: requests,
 				HA: HA{Component: "sensor", DeviceClass: "enum"}},
 			{Key: "compressor_state", Kind: protocol.SP, ID: 10, Label: t("Verdichterstatus", "Compressor state"), Display: Enum, Options: compressorStates,
-				HA: HA{Component: "sensor", DeviceClass: "enum"}},
+				Volatile: true, HA: HA{Component: "sensor", DeviceClass: "enum"}},
 			{Key: "running_since", Kind: protocol.SP, ID: 11, Label: t("Läuft seit", "Running since"), Unit: "s", Display: Duration,
-				HA: HA{Component: "sensor", DeviceClass: "duration", Category: "diagnostic"}},
+				Volatile: true, HA: HA{Component: "sensor", DeviceClass: "duration", Category: "diagnostic"}},
 			mode("mode", 13, t("Betriebsart", "Operating mode")),
 			{Key: "fault", Kind: protocol.MP, ID: 31, Label: t("Störung", "Fault"), Display: Fault,
 				HA: HA{Component: "binary_sensor", DeviceClass: "problem"}},
@@ -399,6 +402,20 @@ func Points(panels []Panel) (mps, sps []int) {
 	slices.Sort(mps)
 	slices.Sort(sps)
 	return mps, sps
+}
+
+// VolatilePoints returns the setup points that must be read on every poll.
+func VolatilePoints(panels []Panel) []int {
+	var out []int
+	for _, p := range panels {
+		for _, it := range p.Items {
+			if it.Kind == protocol.SP && it.Volatile && !slices.Contains(out, it.ID) {
+				out = append(out, it.ID)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // FindWritable returns the catalog item for a writable setup point, if any.

@@ -29,14 +29,34 @@
       "reauth_successful": "Passwort aktualisiert."
     }
   },
-  "entity": {
-    "sensor": {
-      "firmware": { "name": "Firmware" }
+  "services": {
+    "set_temporary": {
+      "name": "Vorübergehend setzen",
+      "description": "Ändert eine Einstellung der Wärmepumpe für begrenzte Zeit; heliocontrol stellt den vorherigen Wert automatisch wieder her (auch nach Neustarts). Für PV-Überschuss oder günstigen Strom.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Zahl oder Auswahl der Wärmepumpe"
+        },
+        "value": {
+          "name": "Wert",
+          "description": "Neuer Wert (Zahl oder Betriebsart, z. B. Party)"
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Minuten, bis der vorherige Wert wiederhergestellt wird"
+        }
+      }
     },
-    "button": {
-      "refresh": { "name": "Aktualisieren" },
-      "reset_fault": { "name": "Entstören" },
-      "sync_clock": { "name": "Zeit synchronisieren" }
+    "cancel_temporary": {
+      "name": "Vorübergehenden Wert beenden",
+      "description": "Stellt den vorherigen Wert sofort wieder her.",
+      "fields": {
+        "entity_id": {
+          "name": "Entität",
+          "description": "Zahl oder Auswahl der Wärmepumpe"
+        }
+      }
     }
   }
 }

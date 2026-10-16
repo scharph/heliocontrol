@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { Api } from './api';
-import { Item, Job, LogEntry, Recording, Sample, Snapshot, Values } from './models';
+import { Item, Job, LogEntry, Override, Recording, Sample, Snapshot, Values } from './models';
 
 /** Live state of the heat pump, kept current by the server's event stream. */
 @Injectable({ providedIn: 'root' })
@@ -23,6 +23,7 @@ export class State {
   readonly job = computed<Job | null>(() => this.snapshot()?.job ?? null);
   readonly recording = computed<Recording | null>(() => this.snapshot()?.recording ?? null);
   readonly canWrite = computed(() => this.online() && !this.readOnly());
+  readonly overrides = computed<Override[]>(() => this.snapshot()?.overrides ?? []);
 
   start() {
     if (this.es) return;
@@ -45,6 +46,7 @@ export class State {
     );
     on<Job | null>('job', (j) => this.snapshot.update((s) => (s ? { ...s, job: j } : s)));
     on<Recording | null>('recording', (r) => this.snapshot.update((s) => (s ? { ...s, recording: r } : s)));
+    on<Override[]>('overrides', (o) => this.snapshot.update((s) => (s ? { ...s, overrides: o } : s)));
     on<LogEntry>('log', (e) => this.log.update((l) => [e, ...l].slice(0, 500)));
     on<Sample>('sample', (x) => {
       this.samples.next(x);
@@ -80,6 +82,10 @@ export class State {
 
   mp(id: number): number | undefined {
     return this.snapshot()?.mp[String(id)];
+  }
+
+  override(sp: number): Override | undefined {
+    return this.overrides().find((o) => o.sp === sp);
   }
 
   /** Optimistically store a setup point value after a successful write. */

@@ -9,28 +9,23 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import HeliocontrolConfigEntry, HeliocontrolCoordinator
-from .entity import ItemEntity, component, items
+from .entity import ValueEntity, language, of_component
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: HeliocontrolConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data
-    snap = coordinator.data or {}
-    read_only = bool(snap.get("readOnly", True))
-    lang = "de" if (hass.config.language or "").startswith("de") else "en"
-    async_add_entities(
-        ItemBinarySensor(coordinator, it, lang) for it in items(snap) if component(it, read_only) == "binary_sensor"
-    )
+    lang = language(hass)
+    async_add_entities(ValueBinarySensor(coordinator, d, lang) for d in of_component(coordinator, "binary_sensor"))
 
 
-class ItemBinarySensor(ItemEntity, BinarySensorEntity):
-    def __init__(self, coordinator: HeliocontrolCoordinator, item: dict[str, Any], lang: str) -> None:
-        super().__init__(coordinator, item, lang)
-        device_class = (item.get("ha") or {}).get("deviceClass")
-        if device_class:
+class ValueBinarySensor(ValueEntity, BinarySensorEntity):
+    def __init__(self, coordinator: HeliocontrolCoordinator, desc: dict[str, Any], lang: str) -> None:
+        super().__init__(coordinator, desc, lang)
+        if desc.get("deviceClass"):
             try:
-                self._attr_device_class = BinarySensorDeviceClass(device_class)
+                self._attr_device_class = BinarySensorDeviceClass(desc["deviceClass"])
             except ValueError:
                 pass
 

@@ -40,6 +40,8 @@ class HeliocontrolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=FALLBACK_POLL_SECONDS),
         )
         self.client = client
+        # entity descriptions from the server (GET /api/ha/entities)
+        self.entities: list[dict[str, Any]] = []
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:

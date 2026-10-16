@@ -1,0 +1,32 @@
+set_temporary:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: heliocontrol
+          domain: [number, select]
+          multiple: true
+    value:
+      required: true
+      example: 55
+      selector:
+        text:
+    duration:
+      required: true
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 1440
+          unit_of_measurement: min
+
+cancel_temporary:
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: heliocontrol
+          domain: [number, select]
+          multiple: true

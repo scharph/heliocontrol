@@ -29,14 +29,34 @@
       "reauth_successful": "Password updated."
     }
   },
-  "entity": {
-    "sensor": {
-      "firmware": { "name": "Firmware" }
+  "services": {
+    "set_temporary": {
+      "name": "Set temporarily",
+      "description": "Changes a heat pump setting for a limited time; heliocontrol restores the previous value automatically (also after restarts). Use it for PV surplus or cheap electricity.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "Number or select of the heat pump"
+        },
+        "value": {
+          "name": "Value",
+          "description": "New value (number, or a mode name such as Party)"
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Minutes until the previous value is restored"
+        }
+      }
     },
-    "button": {
-      "refresh": { "name": "Refresh" },
-      "reset_fault": { "name": "Reset fault" },
-      "sync_clock": { "name": "Sync clock" }
+    "cancel_temporary": {
+      "name": "End temporary value",
+      "description": "Restores the previous value now.",
+      "fields": {
+        "entity_id": {
+          "name": "Entity",
+          "description": "Number or select of the heat pump"
+        }
+      }
     }
   }
 }

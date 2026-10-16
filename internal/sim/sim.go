@@ -57,6 +57,14 @@ type Device struct {
 	lastStep    time.Time
 	Latency     time.Duration
 	log         *slog.Logger
+	commands    map[string]int // received commands by tag (for tests)
+}
+
+// CommandCount returns how many commands with this tag (e.g. "SP", "MR") were received.
+func (d *Device) CommandCount(tag string) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.commands[tag]
 }
 
 type simProgram struct {
@@ -296,6 +304,10 @@ func (d *Device) Handle(cmd string) []string {
 	defer d.mu.Unlock()
 	d.step(time.Now())
 	f := protocol.Split(cmd)
+	if d.commands == nil {
+		d.commands = map[string]int{}
+	}
+	d.commands[f.Tag]++
 	ok := []string{"~OK;"}
 	switch {
 	case f.Tag == "LIN" || f.Tag == "LOUT":

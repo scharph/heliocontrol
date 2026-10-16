@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS samples (
 	reason       INTEGER
 );
 CREATE INDEX IF NOT EXISTS samples_by_recording ON samples (recording_id, t);
+CREATE TABLE IF NOT EXISTS overrides (
+	sp_id    INTEGER PRIMARY KEY,
+	value    REAL NOT NULL,
+	original REAL NOT NULL,
+	until    INTEGER NOT NULL,
+	created  INTEGER NOT NULL,
+	source   TEXT NOT NULL DEFAULT ''
+);
 `
 
 func Open(path string) (*Store, error) {
@@ -70,7 +78,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := db.Exec(schema + historySchema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
@@ -163,6 +171,48 @@ func (s *Store) Points(ctx context.Context, kind protocol.Kind) ([]protocol.Poin
 		}
 		p.NR = p.ID
 		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// --- temporary setpoints ------------------------------------------------------
+
+// Override is a temporary setup point value that is restored automatically.
+type Override struct {
+	SP       int       `json:"sp"`
+	Value    float64   `json:"value"`
+	Original float64   `json:"original"`
+	Until    time.Time `json:"until"`
+	Created  time.Time `json:"created"`
+	Source   string    `json:"source,omitempty"`
+}
+
+func (s *Store) SaveOverride(ctx context.Context, o Override) error {
+	_, err := s.db.ExecContext(ctx, `INSERT OR REPLACE INTO overrides (sp_id, value, original, until, created, source) VALUES (?,?,?,?,?,?)`,
+		o.SP, o.Value, o.Original, o.Until.UnixMilli(), o.Created.UnixMilli(), o.Source)
+	return err
+}
+
+func (s *Store) DeleteOverride(ctx context.Context, sp int) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM overrides WHERE sp_id = ?`, sp)
+	return err
+}
+
+func (s *Store) Overrides(ctx context.Context) ([]Override, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT sp_id, value, original, until, created, source FROM overrides ORDER BY until`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Override
+	for rows.Next() {
+		var o Override
+		var until, created int64
+		if err := rows.Scan(&o.SP, &o.Value, &o.Original, &until, &created, &o.Source); err != nil {
+			return nil, err
+		}
+		o.Until, o.Created = time.UnixMilli(until), time.UnixMilli(created)
+		out = append(out, o)
 	}
 	return out, rows.Err()
 }
@@ -278,16 +328,25 @@ func (s *Store) Recordings(ctx context.Context) ([]Recording, error) {
 }
 
 func (s *Store) Recording(ctx context.Context, id int64) (Recording, error) {
-	all, err := s.Recordings(ctx)
+	var r Recording
+	var started int64
+	var ended sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `SELECT id, name, source, state, started, ended, interval_ms,
+		(SELECT COUNT(*) FROM samples WHERE recording_id = recordings.id) FROM recordings WHERE id = ?`, id).
+		Scan(&r.ID, &r.Name, &r.Source, &r.State, &started, &ended, &r.IntervalMS, &r.Samples)
+	if errors.Is(err, sql.ErrNoRows) {
+		return r, ErrNotFound
+	}
 	if err != nil {
-		return Recording{}, err
+		return r, err
 	}
-	for _, r := range all {
-		if r.ID == id {
-			return r, nil
-		}
+	r.Started = time.UnixMilli(started)
+	if ended.Valid {
+		t := time.UnixMilli(ended.Int64)
+		r.Ended = &t
 	}
-	return Recording{}, ErrNotFound
+	r.Points, err = s.recordingPoints(ctx, id)
+	return r, err
 }
 
 func (s *Store) recordingPoints(ctx context.Context, id int64) ([]RecordingPoint, error) {

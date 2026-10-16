@@ -1,9 +1,30 @@
 # heliocontrol
 
+## What's better than the old homeControl.exe
+
+| | homeControl 2.1 (Windows) | heliocontrol |
+|---|---|---|
+| **Runs on** | One Windows PC with .NET 4.0, open the whole time | A server (Docker, Linux, Windows, NAS); use it from any browser, phone included |
+| **License** | License code per heat pump serial number, from the installer | None needed (the old check never involved the controller) |
+| **Access protection** | Local password with a hard-coded `SuperUser` bypass | Optional login with a bcrypt-hashed password, session cookies |
+| **Remote access** | Port 4001 forwarded through the router, so the heat pump was open to the internet without a password | Port 4001 stays in the LAN; reach the web UI via VPN or Home Assistant |
+| **Safety** | Every change goes straight to the heat pump | Read-only by default (enforced twice); writes checked against the controller's limits; daily write limit per setting; writing the current value again sends nothing |
+| **Smart home** | None | Home Assistant: native integration or MQTT discovery, with sensors, mode selects, setpoints, buttons |
+| **Temporary changes** | Not possible | "Hot water +8 K for 60 min" is restored automatically, even after a restart; the basis for PV surplus and dynamic tariffs |
+| **History** | Only on demand (WEB-Online) or the controller's small trend buffer | Always-on history (400 days), stored on change |
+| **Efficiency analysis** | None | Insights: compressor starts, runtime, cycle length, temperatures while running, deviation from target, hints for short cycling or a high heating curve |
+| **Data shown** | Fixed tabs; some labels wrong for newer firmware | Same pages, built from the controller's own descriptions; unused points hidden; a diagnostics page with 28 extra values (hot gas, subcooling, inverter …); all 488 points browsable |
+| **Live updates** | Manual refresh, or a timer that re-read everything | Values pushed to the browser; settings read rarely, so the controller's line is mostly free |
+| **Reliability** | Replies could mix up after timeouts; garbled umlauts | Each reply matched to its request; correct text decoding; reconnect with backoff |
+| **Data files** | Proprietary `.hwo` / `.htd` | Imports those, exports CSV, and stores recordings in a database |
+| **Bugs fixed** | Brine/water tabs show the heating pump as compressor; trend end times in a 12-hour clock | Fixed |
+| **Languages, look** | German/English, fixed window | German/English, dark mode, phone layout |
+| **Tested** | — | Protocol checked against the original DLL, end-to-end tests with a simulated heat pump, MQTT broker and Home Assistant, verified read-only on a real controller |
+
 A self-hosted replacement for **Heliotherm homeControl**, the discontinued
 Windows tool for Heliotherm heat pumps with the *web control* controller.
 heliocontrol has a Go server, an Angular web UI, and a Home Assistant
-integration over MQTT.
+integration (native custom component or MQTT discovery).
 
 - **No license key needed.** homeControl's license only gated the Windows app;
   the controller doesn't check anything.
@@ -33,6 +54,129 @@ integration over MQTT.
 | — | **Home Assistant** via MQTT discovery |
 | — | **All points** page (all 96 MP / 392 SP) and an expert mode to change any writable setup point |
 | — | Read-only mode, German/English, dark mode, phone layout |
+
+## Beyond homeControl
+
+These features follow from the [design review](docs/design-review.md), which
+also explains the heating concepts behind them.
+
+- **Temporary values.** Change a setpoint for a while (e.g. hot water +8 K for
+  60 min), and heliocontrol restores the original automatically, even after a
+  restart. Available on the overview page, via `POST /api/overrides`, and as the
+  Home Assistant service `heliocontrol.set_temporary`. This is the
+  controller-side equivalent of SG-Ready "recommended on", for PV surplus or
+  cheap hours.
+- **Write budget.** Each setup point may be changed at most 48 times per day
+  (configurable), which protects the controller's EEPROM from runaway
+  automations. Writing the current value again sends nothing.
+- **Insights.** Always-on history (stored on change, kept 400 days) gives
+  compressor starts per day (exact, from the controller's start counter),
+  runtime, cycle length, flow, return and spread while running, and the
+  deviation from the return target. Hints point out short cycling or a heating
+  curve that is higher than necessary.
+- **Lighter polling.** Measuring points come from one multi-read; settings are
+  re-read every 10 minutes, after writes, and on *Refresh*. That cuts the bus
+  time per poll from 2–3 s to a few hundred ms.
+
+Example: store PV surplus in the hot water tank (Home Assistant):
+
+```yaml
+automation:
+  - alias: Hot water boost on PV surplus
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.grid_export_power
+        above: 2500
+        for: { minutes: 10 }
+    actions:
+      - action: heliocontrol.set_temporary
+        target:
+          entity_id: number.heliotherm_hot_water_target
+        data: { value: 56, duration: 60 }
+```
+
+## Findings
+
+What was learned while building heliocontrol: by decompiling homeControl 2.1,
+by running read-only probes against a real web control (firmware 2.07D), and in
+the [design review](docs/design-review.md).
+
+### About homeControl and the controller
+
+- **It's not Modbus.** The controller speaks a proprietary ASCII protocol
+  (`~MP,NR=3;`, `~SP,NR=13,VAL=1;` …) inside a small binary frame with its own
+  checksum, on TCP port 4001 of the LAN modem or over RS232. The frame codec is
+  byte-identical to homeControl's `DataFrame.dll` on 409 test cases. Details:
+  [docs/protocol.md](docs/protocol.md).
+- **No security at all.** Login (`~LIN;`) takes no password, and nothing is
+  encrypted, so anyone who can reach port 4001 can change every setting.
+  Forwarding that port through the router, as homeControl's manual suggests for
+  remote access, exposes the heat pump to the internet.
+- **The license is cosmetic.** homeControl checks the license code against a
+  hash of the serial number entered in the app, offline. The controller never
+  sees it. homeControl's own password lock has a hard-coded bypass (`SuperUser`).
+- **One session at a time.** The modem refuses a second connection, so
+  homeControl, heliocontrol and any other tool cannot run in parallel.
+- **No request IDs.** Replies aren't tagged, and counted requests (`~RM`,
+  `~PRL`, `~PRD`) keep streaming records after the first answer. A request sent
+  too early receives leftovers of the previous one, so heliocontrol matches
+  every reply to its request by prefix.
+- **The controller describes itself.** Every point reply carries a name, its
+  limits, "used" and "writable" flags. SP 9 holds the installation bit mask as
+  its value and the firmware version as its name. Text is ISO-8859-1.
+- **Firmware differs from homeControl's assumptions:**
+  - The operating mode only goes up to 7 (Party) on 2.07D.
+  - MP 25 is the hot water priority valve, not a pump.
+  - MP 83/89 are power values, and MP 88 is the inverter frequency.
+  - Mixer circuit 1 has its own enable flag (SP 199).
+  - The controller's own limits differ from homeControl's hard-coded ones; the
+    heating limit, for example, goes to 45 °C, not 24 °C.
+- **Timing (real device):** one point read takes 100–200 ms. The multi-read
+  `~MR` fetches 4 values in about 130 ms. Reading all 96 measuring points takes
+  10 s, and all 392 setup points 23 s.
+- **Bugs in homeControl:**
+  - The brine and water source tabs show the heating pump (MP 22) as compressor
+    and source pump.
+  - Trend end times are sent in a 12-hour clock.
+
+### About the design (fixed on this branch)
+
+- **Polling occupied the bus.** Re-reading ~20 settings every 15 s kept the
+  controller busy 15–20 % of the time, so polling is now tiered.
+- **Automations could wear out the controller.** Parameters most likely live in
+  EEPROM (assumed; there is no datasheet), hence the write budget and the
+  skipping of no-op writes.
+- **"Change it for a while" had no safe form.** Restores were lost on restarts,
+  and automations could fight over a value, hence restart-safe temporary values.
+- **Entity mapping lived in two places (Go and Python) and had drifted.** It is
+  now built once by the server. Writing the shared tests caught a real bug: the
+  outdoor temperature (point 0) vanished in the Python integration.
+- **Without history there was no way to see efficiency**, hence the continuous
+  history and the Insights page.
+
+### About heating with this heat pump
+
+- **The free efficiency levers come first:** a lower flow temperature (about
+  2.5 % better efficiency per degree), long instead of short compressor cycles,
+  and hydraulic balancing.
+  [42watt](https://42watt.de/magazin/waermepumpe-effizienz),
+  [reduco](https://reduco.ai/blog/heizung/vorlauftemperatur-senken)
+  The Insights page measures exactly these.
+- **Heat storage with PV surplus.** Modern heat pumps take an *SG-Ready* signal
+  to store heat when power is cheap or self-generated.
+  [IDM](https://www.idm-energie.at/en/heat-pump-installation/smart-grid-connection/),
+  [field study](https://www.sciencedirect.com/science/article/pii/S2667113123000153)
+  The web control 2.07D has no such input in its protocol. Temporary values give
+  the same effect (see the automation example above).
+- **Dynamic tariffs.** Hourly spot-price tariffs exist in Austria, and
+  simulations of price-aware heat pump control report roughly 13–50 % lower
+  costs.
+  [checkeverything.at](https://www.checkeverything.at/de/blog/dynamische-stromtarife-2026),
+  [Springer 2026](https://link.springer.com/chapter/10.1007/978-3-032-03098-6_14)
+  This uses the same mechanism, driven by tariff integrations in Home Assistant.
+- **Predictive control** (forecast-based pre-heating) is not implemented yet.
+  It needs a thermal model of the house, which the new history makes possible
+  to learn.
 
 ## Quick start
 
@@ -128,9 +272,12 @@ internal/frame      binary envelope (golden tests against the original DataFrame
 internal/protocol   commands, reply parsing, read-only allowlist
 internal/device     connection, request/reply matching, keep-alive, typed operations
 internal/catalog    point → page map (homeControl's tab layout as data), heating curve
-internal/service    session, polling, recorder, trend/time-program jobs, event bus
-internal/store      SQLite (pure Go): log, point cache, recordings
-internal/mqtt       Home Assistant bridge
+internal/service    session, tiered polling, write guard, temporary values,
+                    history + insights, recorder, trend/time-program jobs, event bus
+internal/store      SQLite (pure Go): log, point cache, recordings, history, overrides
+internal/haentity   Home Assistant entity descriptions (shared by MQTT and the integration)
+internal/mqtt       Home Assistant MQTT discovery bridge
+custom_components/  Home Assistant custom integration (Python)
 internal/api        REST + SSE + auth, embeds the UI
 internal/legacy     homeControl .htd / .hwo import
 web/                Angular 22 app (zoneless, standalone, signals)

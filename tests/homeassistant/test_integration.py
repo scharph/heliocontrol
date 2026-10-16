@@ -98,6 +98,21 @@ async def test_writes_and_live_updates(hass: HomeAssistant, writable_server) -> 
     with pytest.raises(Exception, match="cannot be selected"):
         await hass.services.async_call("select", "select_option", {"entity_id": mode, "option": "Main switch"}, blocking=True)
 
+    # temporary setpoints: changed now, restored by heliocontrol later (or on cancel)
+    dhw = _entity(hass, "number", "dhw_target")
+    await hass.services.async_call(DOMAIN, "set_temporary", {"entity_id": dhw, "value": 55, "duration": 30}, blocking=True)
+    overrides = writable_server.get("/api/overrides")
+    assert [(o["sp"], o["value"], o["original"]) for o in overrides] == [(83, 55, 48)]
+    await hass.services.async_call(DOMAIN, "cancel_temporary", {"entity_id": dhw}, blocking=True)
+    assert writable_server.get("/api/overrides") == []
+    assert writable_server.get("/api/state")["sp"]["83"] == 48
+    await hass.services.async_call(DOMAIN, "set_temporary", {"entity_id": mode, "value": "Party", "duration": 60}, blocking=True)
+    assert writable_server.get("/api/state")["sp"]["13"] == 7
+    with pytest.raises(Exception, match="not a heliocontrol entity|not a setting"):
+        await hass.services.async_call(
+            DOMAIN, "set_temporary", {"entity_id": _entity(hass, "sensor", "outdoor"), "value": 1, "duration": 5}, blocking=True
+        )
+
     assert _entity(hass, "button", "reset_fault")
     # readable, distinct entity ids (translation keys, mixer circuit prefix)
     assert _entity(hass, "button", "refresh") == "button.heliotherm_refresh"

@@ -46,6 +46,7 @@ type Snapshot struct {
 	PollSeconds  int                  `json:"pollSeconds"`
 	Job          *Job                 `json:"job,omitempty"`
 	Recording    *store.Recording     `json:"recording,omitempty"`
+	Overrides    []store.Override     `json:"overrides"`
 }
 
 // Job is a long-running device operation with progress.
@@ -70,6 +71,11 @@ type Service struct {
 	jobs   chan struct{} // one long job at a time; others wait their turn
 	rec    *recorder
 	cancel context.CancelFunc
+	// lastSettings is when the (slowly changing) settings were last read
+	lastSettings time.Time
+	budget       writeBudget
+	history      historyRecorder
+	overrides    map[int]store.Override // temporary setpoints by SP
 }
 
 var (
@@ -79,7 +85,7 @@ var (
 )
 
 func New(cfg *config.Store, st *store.Store, log *slog.Logger) *Service {
-	s := &Service{cfg: cfg, store: st, log: log, Bus: NewBus(), wake: make(chan struct{}, 1), jobs: make(chan struct{}, 1),
+	s := &Service{cfg: cfg, store: st, log: log, Bus: NewBus(), wake: make(chan struct{}, 1), jobs: make(chan struct{}, 1), overrides: map[int]store.Override{},
 		meta: map[protocol.Kind]map[int]protocol.Point{protocol.MP: {}, protocol.SP: {}}}
 	s.snap = Snapshot{Status: Offline, MP: map[int]float64{}, SP: map[int]float64{}}
 	s.snap.Panels = catalog.Resolve(catalog.Installation{})
@@ -92,6 +98,15 @@ func (s *Service) Run(ctx context.Context) {
 	if err := s.store.StopDangling(ctx); err != nil {
 		s.log.Warn("close interrupted recordings", "err", err)
 	}
+	if ovs, err := s.store.Overrides(ctx); err == nil {
+		s.mu.Lock()
+		for _, o := range ovs {
+			s.overrides[o.SP] = o
+		}
+		s.mu.Unlock()
+	}
+	go s.overrideLoop(ctx)
+	go s.historyLoop(ctx)
 	for _, kind := range []protocol.Kind{protocol.MP, protocol.SP} {
 		if pts, err := s.store.Points(ctx, kind); err == nil {
 			for _, p := range pts {
@@ -203,6 +218,7 @@ func (s *Service) Snapshot() Snapshot {
 	c := s.snap
 	c.MP = maps.Clone(s.snap.MP)
 	c.SP = maps.Clone(s.snap.SP)
+	c.Overrides = s.overrideList()
 	return c
 }
 
@@ -273,6 +289,7 @@ func (s *Service) session(ctx context.Context) error {
 
 	s.mu.Lock()
 	s.client = c
+	s.lastSettings = time.Time{} // first poll of a session reads everything
 	s.snap.DeviceID, s.snap.Firmware, s.snap.Installation = id, firmware, inst
 	s.snap.Status, s.snap.Error = Online, ""
 	s.mu.Unlock()
@@ -295,7 +312,7 @@ func (s *Service) session(ctx context.Context) error {
 
 	failures := 0
 	for {
-		err := s.poll(ctx, c)
+		err := s.poll(ctx, c, false)
 		if err == nil && needInit {
 			// names and limits of all points; after the first poll so values show up quickly
 			needInit = false
@@ -324,47 +341,6 @@ func (s *Service) session(ctx context.Context) error {
 		case <-time.After(time.Duration(s.cfg.Get().PollSeconds) * time.Second):
 		}
 	}
-}
-
-// Refresh polls immediately (the UI's "refresh data" button).
-func (s *Service) Refresh(ctx context.Context) error {
-	c, err := s.Client()
-	if err != nil {
-		return err
-	}
-	return s.poll(ctx, c)
-}
-
-func (s *Service) poll(ctx context.Context, c *device.Client) error {
-	s.mu.RLock()
-	mps, sps := catalog.Points(s.snap.Panels)
-	s.mu.RUnlock()
-	vals, err := c.ReadValues(ctx, mps)
-	if err != nil {
-		return err
-	}
-	pts, err := c.ReadPoints(ctx, protocol.SP, sps)
-	if err != nil {
-		return err
-	}
-	s.mu.Lock()
-	maps.Copy(s.snap.MP, vals)
-	for id, p := range pts {
-		s.snap.SP[id] = p.Val
-		s.meta[protocol.SP][id] = mergeMeta(s.meta[protocol.SP][id], p)
-	}
-	s.snap.Updated = time.Now()
-	s.mu.Unlock()
-	s.Bus.Publish(Event{Type: "values", Data: s.Values()})
-	return nil
-}
-
-// mergeMeta keeps a cached name if a reply lacks one.
-func mergeMeta(old, p protocol.Point) protocol.Point {
-	if p.Name == "" {
-		p.Name = old.Name
-	}
-	return p
 }
 
 // Values is the compact value payload sent on every poll.
