@@ -1,0 +1,275 @@
+{
+  "title": "Smart Climate",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smart Climate",
+        "description": "Which controller do you want to add?",
+        "menu_options": {
+          "room": "Room controller",
+          "building": "Building climate controller",
+          "temperature": "Flow temperature controller",
+          "mixer": "Heating mixer controller"
+        }
+      },
+      "room": {
+        "title": "Add room controller",
+        "data": {
+          "name": "Name",
+          "temperature_sensor": "Temperature sensor",
+          "heater": "Heating actuator",
+          "cooler": "Cooling actuator (optional)",
+          "area_m2": "Room area (m²)",
+          "window_sensors": "Window/door contacts",
+          "presence_sensor": "Presence sensor (optional)",
+          "comfort_schedule": "Comfort schedule (optional)",
+          "comfort_temperature": "Comfort temperature",
+          "cooling_temperature": "Comfort cooling temperature",
+          "hvac_deadband": "Heating/cooling deadband (K)",
+          "eco_temperature": "Eco temperature",
+          "protection_temperature": "Protection temperature",
+          "pwm_period_minutes": "PWM period (minutes)",
+          "shading_covers": "Shading covers",
+          "window_azimuth": "Window orientation (°)",
+          "shading_temperature": "Shading from room temperature",
+          "azimuth_tolerance": "Azimuth tolerance (°)",
+          "wind_alarm": "Wind alarm (optional)",
+          "shading_strategy": "Shading strategy",
+          "slat_width_mm": "Slat width (mm)",
+          "slat_spacing_mm": "Slat spacing (mm)"
+        }
+      },
+      "building": {
+        "title": "Add building climate controller",
+        "data": {
+          "name": "Name",
+          "heating_stage1": "Heating stage 1",
+          "heating_stage2": "Heating stage 2 (optional)",
+          "cooling_stage1": "Cooling stage 1 (optional)",
+          "cooling_stage2": "Cooling stage 2 (optional)",
+          "start_threshold": "Start threshold (%)",
+          "stop_threshold": "Stop threshold (%)",
+          "stage2_threshold": "Stage 2 threshold (%)",
+          "min_run_minutes": "Minimum run time (min)",
+          "min_off_minutes": "Minimum off time (min)"
+        }
+      },
+      "temperature": {
+        "title": "Add flow temperature controller",
+        "data": {
+          "name": "Name",
+          "outdoor_temperature_sensor": "Outdoor temperature sensor (optional)",
+          "flow_setpoint": "Flow setpoint output (optional)",
+          "buffer_setpoint": "Buffer setpoint output (optional)",
+          "heat_flow_min": "Minimum heating flow temperature",
+          "heat_flow_max": "Maximum heating flow temperature",
+          "cool_flow_min": "Minimum cooling flow temperature",
+          "cool_flow_max": "Maximum cooling flow temperature",
+          "buffer_offset": "Buffer offset (K)",
+          "weather_compensation": "Weather compensation (K/K)"
+        }
+      },
+      "mixer": {
+        "title": "Add heating mixer controller",
+        "data": {
+          "name": "Name",
+          "mixer_flow_temperature_sensor": "Flow temperature sensor",
+          "mixer_position": "Analog mixer output 0–100 % (optional)",
+          "mixer_open": "Mixer OPEN relay (optional)",
+          "mixer_close": "Mixer CLOSE relay (optional)",
+          "mixer_pump": "Circulation pump",
+          "mixer_kp": "Proportional gain Kp",
+          "mixer_ki": "Integral gain Ki",
+          "mixer_deadband": "Mixer deadband (K)",
+          "mixer_max_temperature": "Maximum flow temperature (safety)",
+          "pump_overrun_minutes": "Pump overrun (min)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This controller is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings: {name}",
+        "description": "Changes are applied immediately; the controller restarts.",
+        "data": {
+          "temperature_sensor": "Temperature sensor",
+          "heater": "Heating actuator",
+          "cooler": "Cooling actuator (optional)",
+          "area_m2": "Room area (m²)",
+          "window_sensors": "Window/door contacts",
+          "presence_sensor": "Presence sensor (optional)",
+          "comfort_schedule": "Comfort schedule (optional)",
+          "comfort_temperature": "Comfort temperature",
+          "cooling_temperature": "Comfort cooling temperature",
+          "hvac_deadband": "Heating/cooling deadband (K)",
+          "eco_temperature": "Eco temperature",
+          "protection_temperature": "Protection temperature",
+          "pwm_period_minutes": "PWM period (minutes)",
+          "shading_covers": "Shading covers",
+          "window_azimuth": "Window orientation (°)",
+          "shading_temperature": "Shading from room temperature",
+          "azimuth_tolerance": "Azimuth tolerance (°)",
+          "wind_alarm": "Wind alarm (optional)",
+          "shading_strategy": "Shading strategy",
+          "slat_width_mm": "Slat width (mm)",
+          "slat_spacing_mm": "Slat spacing (mm)",
+          "heating_stage1": "Heating stage 1",
+          "heating_stage2": "Heating stage 2 (optional)",
+          "cooling_stage1": "Cooling stage 1 (optional)",
+          "cooling_stage2": "Cooling stage 2 (optional)",
+          "start_threshold": "Start threshold (%)",
+          "stop_threshold": "Stop threshold (%)",
+          "stage2_threshold": "Stage 2 threshold (%)",
+          "min_run_minutes": "Minimum run time (min)",
+          "min_off_minutes": "Minimum off time (min)",
+          "outdoor_temperature_sensor": "Outdoor temperature sensor (optional)",
+          "flow_setpoint": "Flow setpoint output (optional)",
+          "buffer_setpoint": "Buffer setpoint output (optional)",
+          "heat_flow_min": "Minimum heating flow temperature",
+          "heat_flow_max": "Maximum heating flow temperature",
+          "cool_flow_min": "Minimum cooling flow temperature",
+          "cool_flow_max": "Maximum cooling flow temperature",
+          "buffer_offset": "Buffer offset (K)",
+          "weather_compensation": "Weather compensation (K/K)",
+          "mixer_flow_temperature_sensor": "Flow temperature sensor",
+          "mixer_position": "Analog mixer output 0–100 % (optional)",
+          "mixer_open": "Mixer OPEN relay (optional)",
+          "mixer_close": "Mixer CLOSE relay (optional)",
+          "mixer_pump": "Circulation pump",
+          "mixer_kp": "Proportional gain Kp",
+          "mixer_ki": "Integral gain Ki",
+          "mixer_deadband": "Mixer deadband (K)",
+          "mixer_max_temperature": "Maximum flow temperature (safety)",
+          "pump_overrun_minutes": "Pump overrun (min)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "climate": {
+      "room_controller": {
+        "name": "Room controller"
+      }
+    },
+    "sensor": {
+      "heating_demand": {
+        "name": "Heating demand"
+      },
+      "cooling_demand": {
+        "name": "Cooling demand"
+      },
+      "heating_rate": {
+        "name": "Learned heating rate"
+      },
+      "preheat_minutes": {
+        "name": "Preheat time"
+      },
+      "room_mode": {
+        "name": "Room mode",
+        "state": {
+          "comfort": "Comfort",
+          "eco": "Eco",
+          "preheat": "Preheat",
+          "protection": "Protection",
+          "off": "Off"
+        }
+      },
+      "shading_reason": {
+        "name": "Shading reason"
+      },
+      "shading_tilt": {
+        "name": "Slat position"
+      },
+      "plant_mode": {
+        "name": "Plant mode",
+        "state": {
+          "idle": "Idle",
+          "heating": "Heating",
+          "cooling": "Cooling"
+        }
+      },
+      "plant_heating_demand": {
+        "name": "Heating demand"
+      },
+      "plant_cooling_demand": {
+        "name": "Cooling demand"
+      },
+      "plant_reason": {
+        "name": "Decision reason"
+      },
+      "flow_target": {
+        "name": "Flow target"
+      },
+      "buffer_target": {
+        "name": "Buffer target"
+      },
+      "temperature_reason": {
+        "name": "Temperature control reason"
+      },
+      "mixer_mode": {
+        "name": "Mixer mode",
+        "state": {
+          "idle": "Idle",
+          "heating": "Heating",
+          "cooling": "Cooling",
+          "safety": "Safety shutdown"
+        }
+      },
+      "mixer_position": {
+        "name": "Mixer position"
+      },
+      "mixer_error": {
+        "name": "Flow temperature error"
+      },
+      "mixer_reason": {
+        "name": "Mixer control reason"
+      }
+    },
+    "binary_sensor": {
+      "heating_active": {
+        "name": "Heating demand active"
+      },
+      "cooling_active": {
+        "name": "Cooling active"
+      },
+      "window_protection": {
+        "name": "Window protection"
+      },
+      "shading_demand": {
+        "name": "Shading demand"
+      },
+      "sun_on_window": {
+        "name": "Sun on window"
+      },
+      "plant_heating": {
+        "name": "Heating"
+      },
+      "plant_cooling": {
+        "name": "Cooling"
+      },
+      "plant_stage2": {
+        "name": "Stage 2"
+      }
+    }
+  },
+  "services": {
+    "clear_manual_override": {
+      "name": "Clear manual override",
+      "description": "Clears room target and shading manual overrides.",
+      "fields": {
+        "entry_id": {
+          "name": "Config entry ID",
+          "description": "Optional room config entry ID. Empty clears all rooms."
+        }
+      }
+    },
+    "recalculate": {
+      "name": "Recalculate",
+      "description": "Immediately recalculates all Smart Climate controllers."
+    }
+  }
+}

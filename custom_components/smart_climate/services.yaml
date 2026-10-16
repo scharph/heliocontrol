@@ -1,0 +1,8 @@
+clear_manual_override:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: smart_climate
+recalculate:
