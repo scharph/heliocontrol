@@ -74,6 +74,13 @@ language (German or English). Updates are pushed live, with a 60 s polling
 fallback. When the pages or read-only mode change on the server, the entry
 reloads by itself.
 
+### Smart Climate
+
+`custom_components/smart_climate` is a separate helper integration for
+room/building/flow-temperature/mixer control. It doesn't depend on
+heliocontrol. Install it manually by copying the folder; see
+[docs/smart-climate.md](docs/smart-climate.md).
+
 ### MQTT discovery
 
 Enable MQTT in *Settings* (broker URL, user, password). The heat pump appears
@@ -129,7 +136,8 @@ web/                Angular 22 app (zoneless, standalone, signals)
 
 `make test` runs the Go tests (including end-to-end tests against the
 simulator and an embedded MQTT broker) and the web unit tests. `make test-ha`
-runs the Home Assistant integration tests (`tests/homeassistant`): they build
+runs the Home Assistant integration tests (`tests/homeassistant`, plus
+the Smart Climate tests in `tests/smart_climate`): the heliocontrol ones build
 the server and the simulator, start both, and drive the integration inside a
 Home Assistant test instance (needs Go, plus Python with
 `pytest-homeassistant-custom-component`; Linux or macOS). `make dev`

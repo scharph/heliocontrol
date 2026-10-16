@@ -1,0 +1,275 @@
+{
+  "title": "Smart Climate",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smart Climate",
+        "description": "Welchen Regler möchtest du hinzufügen?",
+        "menu_options": {
+          "room": "Raumregler",
+          "building": "Gebäude-Klimaregler",
+          "temperature": "Vorlauftemperaturregler",
+          "mixer": "Heizungsmischer"
+        }
+      },
+      "room": {
+        "title": "Raumregler hinzufügen",
+        "data": {
+          "name": "Name",
+          "temperature_sensor": "Temperatursensor",
+          "heater": "Heizungsaktor",
+          "cooler": "Kühlaktor (optional)",
+          "area_m2": "Raumfläche (m²)",
+          "window_sensors": "Fenster-/Türkontakte",
+          "presence_sensor": "Präsenzsensor (optional)",
+          "comfort_schedule": "Comfort-Zeitplan (optional)",
+          "comfort_temperature": "Komforttemperatur",
+          "cooling_temperature": "Komfort-Kühltemperatur",
+          "hvac_deadband": "Totzone Heizen/Kühlen (K)",
+          "eco_temperature": "Eco-Temperatur",
+          "protection_temperature": "Frostschutztemperatur",
+          "pwm_period_minutes": "PWM-Zyklus (Minuten)",
+          "shading_covers": "Beschattungen",
+          "window_azimuth": "Fensterausrichtung (°)",
+          "shading_temperature": "Beschattung ab Raumtemperatur",
+          "azimuth_tolerance": "Azimut-Toleranz (°)",
+          "wind_alarm": "Windalarm (optional)",
+          "shading_strategy": "Beschattungsstrategie",
+          "slat_width_mm": "Lamellenbreite (mm)",
+          "slat_spacing_mm": "Lamellenabstand (mm)"
+        }
+      },
+      "building": {
+        "title": "Gebäude-Klimaregler hinzufügen",
+        "data": {
+          "name": "Name",
+          "heating_stage1": "Heizstufe 1",
+          "heating_stage2": "Heizstufe 2 (optional)",
+          "cooling_stage1": "Kühlstufe 1 (optional)",
+          "cooling_stage2": "Kühlstufe 2 (optional)",
+          "start_threshold": "Einschaltschwelle (%)",
+          "stop_threshold": "Ausschaltschwelle (%)",
+          "stage2_threshold": "Schwelle Stufe 2 (%)",
+          "min_run_minutes": "Mindestlaufzeit (min)",
+          "min_off_minutes": "Mindeststillstandszeit (min)"
+        }
+      },
+      "temperature": {
+        "title": "Vorlauftemperaturregler hinzufügen",
+        "data": {
+          "name": "Name",
+          "outdoor_temperature_sensor": "Außentemperatursensor (optional)",
+          "flow_setpoint": "Ausgang Vorlauf-Sollwert (optional)",
+          "buffer_setpoint": "Ausgang Puffer-Sollwert (optional)",
+          "heat_flow_min": "Minimale Heiz-Vorlauftemperatur",
+          "heat_flow_max": "Maximale Heiz-Vorlauftemperatur",
+          "cool_flow_min": "Minimale Kühl-Vorlauftemperatur",
+          "cool_flow_max": "Maximale Kühl-Vorlauftemperatur",
+          "buffer_offset": "Puffer-Offset (K)",
+          "weather_compensation": "Witterungsführung (K/K)"
+        }
+      },
+      "mixer": {
+        "title": "Heizungsmischer hinzufügen",
+        "data": {
+          "name": "Name",
+          "mixer_flow_temperature_sensor": "Vorlauftemperatursensor",
+          "mixer_position": "Analoger Mischerausgang 0–100 % (optional)",
+          "mixer_open": "Mischer-AUF-Relais (optional)",
+          "mixer_close": "Mischer-ZU-Relais (optional)",
+          "mixer_pump": "Umwälzpumpe",
+          "mixer_kp": "Proportionalbeiwert Kp",
+          "mixer_ki": "Integralbeiwert Ki",
+          "mixer_deadband": "Mischer-Totzone (K)",
+          "mixer_max_temperature": "Maximale Vorlauftemperatur (Sicherheit)",
+          "pump_overrun_minutes": "Pumpennachlauf (min)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Dieser Regler ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Einstellungen: {name}",
+        "description": "Änderungen werden sofort übernommen; der Regler startet neu.",
+        "data": {
+          "temperature_sensor": "Temperatursensor",
+          "heater": "Heizungsaktor",
+          "cooler": "Kühlaktor (optional)",
+          "area_m2": "Raumfläche (m²)",
+          "window_sensors": "Fenster-/Türkontakte",
+          "presence_sensor": "Präsenzsensor (optional)",
+          "comfort_schedule": "Comfort-Zeitplan (optional)",
+          "comfort_temperature": "Komforttemperatur",
+          "cooling_temperature": "Komfort-Kühltemperatur",
+          "hvac_deadband": "Totzone Heizen/Kühlen (K)",
+          "eco_temperature": "Eco-Temperatur",
+          "protection_temperature": "Frostschutztemperatur",
+          "pwm_period_minutes": "PWM-Zyklus (Minuten)",
+          "shading_covers": "Beschattungen",
+          "window_azimuth": "Fensterausrichtung (°)",
+          "shading_temperature": "Beschattung ab Raumtemperatur",
+          "azimuth_tolerance": "Azimut-Toleranz (°)",
+          "wind_alarm": "Windalarm (optional)",
+          "shading_strategy": "Beschattungsstrategie",
+          "slat_width_mm": "Lamellenbreite (mm)",
+          "slat_spacing_mm": "Lamellenabstand (mm)",
+          "heating_stage1": "Heizstufe 1",
+          "heating_stage2": "Heizstufe 2 (optional)",
+          "cooling_stage1": "Kühlstufe 1 (optional)",
+          "cooling_stage2": "Kühlstufe 2 (optional)",
+          "start_threshold": "Einschaltschwelle (%)",
+          "stop_threshold": "Ausschaltschwelle (%)",
+          "stage2_threshold": "Schwelle Stufe 2 (%)",
+          "min_run_minutes": "Mindestlaufzeit (min)",
+          "min_off_minutes": "Mindeststillstandszeit (min)",
+          "outdoor_temperature_sensor": "Außentemperatursensor (optional)",
+          "flow_setpoint": "Ausgang Vorlauf-Sollwert (optional)",
+          "buffer_setpoint": "Ausgang Puffer-Sollwert (optional)",
+          "heat_flow_min": "Minimale Heiz-Vorlauftemperatur",
+          "heat_flow_max": "Maximale Heiz-Vorlauftemperatur",
+          "cool_flow_min": "Minimale Kühl-Vorlauftemperatur",
+          "cool_flow_max": "Maximale Kühl-Vorlauftemperatur",
+          "buffer_offset": "Puffer-Offset (K)",
+          "weather_compensation": "Witterungsführung (K/K)",
+          "mixer_flow_temperature_sensor": "Vorlauftemperatursensor",
+          "mixer_position": "Analoger Mischerausgang 0–100 % (optional)",
+          "mixer_open": "Mischer-AUF-Relais (optional)",
+          "mixer_close": "Mischer-ZU-Relais (optional)",
+          "mixer_pump": "Umwälzpumpe",
+          "mixer_kp": "Proportionalbeiwert Kp",
+          "mixer_ki": "Integralbeiwert Ki",
+          "mixer_deadband": "Mischer-Totzone (K)",
+          "mixer_max_temperature": "Maximale Vorlauftemperatur (Sicherheit)",
+          "pump_overrun_minutes": "Pumpennachlauf (min)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "climate": {
+      "room_controller": {
+        "name": "Raumregler"
+      }
+    },
+    "sensor": {
+      "heating_demand": {
+        "name": "Heizbedarf"
+      },
+      "cooling_demand": {
+        "name": "Kühlbedarf"
+      },
+      "heating_rate": {
+        "name": "Gelernte Heizgeschwindigkeit"
+      },
+      "preheat_minutes": {
+        "name": "Vorheizzeit"
+      },
+      "room_mode": {
+        "name": "Raummodus",
+        "state": {
+          "comfort": "Komfort",
+          "eco": "Eco",
+          "preheat": "Vorheizen",
+          "protection": "Schutz",
+          "off": "Aus"
+        }
+      },
+      "shading_reason": {
+        "name": "Beschattungsgrund"
+      },
+      "shading_tilt": {
+        "name": "Lamellenposition"
+      },
+      "plant_mode": {
+        "name": "Anlagenmodus",
+        "state": {
+          "idle": "Bereit",
+          "heating": "Heizen",
+          "cooling": "Kühlen"
+        }
+      },
+      "plant_heating_demand": {
+        "name": "Heizbedarf"
+      },
+      "plant_cooling_demand": {
+        "name": "Kühlbedarf"
+      },
+      "plant_reason": {
+        "name": "Entscheidungsgrund"
+      },
+      "flow_target": {
+        "name": "Vorlauf-Sollwert"
+      },
+      "buffer_target": {
+        "name": "Puffer-Sollwert"
+      },
+      "temperature_reason": {
+        "name": "Grund Temperaturregelung"
+      },
+      "mixer_mode": {
+        "name": "Mischermodus",
+        "state": {
+          "idle": "Bereit",
+          "heating": "Heizen",
+          "cooling": "Kühlen",
+          "safety": "Sicherheitsabschaltung"
+        }
+      },
+      "mixer_position": {
+        "name": "Mischerstellung"
+      },
+      "mixer_error": {
+        "name": "Vorlauf-Regelabweichung"
+      },
+      "mixer_reason": {
+        "name": "Grund Mischerregelung"
+      }
+    },
+    "binary_sensor": {
+      "heating_active": {
+        "name": "Heizanforderung"
+      },
+      "cooling_active": {
+        "name": "Kühlanforderung"
+      },
+      "window_protection": {
+        "name": "Fensterschutz"
+      },
+      "shading_demand": {
+        "name": "Beschattungsanforderung"
+      },
+      "sun_on_window": {
+        "name": "Sonne am Fenster"
+      },
+      "plant_heating": {
+        "name": "Heizen"
+      },
+      "plant_cooling": {
+        "name": "Kühlen"
+      },
+      "plant_stage2": {
+        "name": "Stufe 2"
+      }
+    }
+  },
+  "services": {
+    "clear_manual_override": {
+      "name": "Manuelle Übersteuerung aufheben",
+      "description": "Setzt manuelle Soll- und Beschattungsübersteuerungen der Räume zurück.",
+      "fields": {
+        "entry_id": {
+          "name": "Config-Entry-ID",
+          "description": "Optionale Config-Entry-ID eines Raums. Leer = alle Räume."
+        }
+      }
+    },
+    "recalculate": {
+      "name": "Neu berechnen",
+      "description": "Berechnet alle Smart-Climate-Regler sofort neu."
+    }
+  }
+}

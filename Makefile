@@ -24,6 +24,7 @@ test:
 # Home Assistant integration (pip install pytest-homeassistant-custom-component)
 test-ha:
 	python -m pytest
+	node --test tests/smart_climate/card.test.mjs
 
 # simulator + server, UI on http://localhost:8080
 run-sim: server sim
