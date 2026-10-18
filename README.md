@@ -195,6 +195,9 @@ heliocontrol speaks the parameter API of
 and Loxone configurations built for it work after changing the address. You don't
 need a Raspberry Pi or `--bool-as-int`: values are always numbers.
 
+The endpoints are off by default. Turn them on with the environment variable
+`HELIOCONTROL_HTREST=true` (see `docker-compose.yml`).
+
 | Request | Result |
 |---|---|
 | `GET /api/v1/param/` | All parameters: `{"HKR Soll_Raum": 22.5, "Betriebsart": 1, …}` |

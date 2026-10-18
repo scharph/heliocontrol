@@ -40,6 +40,8 @@ type Server struct {
 	web        fs.FS
 	version    string
 	OnSettings func(old, cur config.Config)
+	// HtREST enables the Loxone-compatible /api/v1 endpoints (HELIOCONTROL_HTREST).
+	HtREST bool
 
 	sessMu   sync.Mutex
 	sessions map[string]time.Time
@@ -203,7 +205,9 @@ func (s *Server) Handler() http.Handler {
 		return writeJSON(w, ports)
 	})
 
-	s.htrestRoutes(h)
+	if s.HtREST {
+		s.htrestRoutes(h)
+	}
 
 	mux.Handle("/", s.static())
 	return s.authMiddleware(mux)

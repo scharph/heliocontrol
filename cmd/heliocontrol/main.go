@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -76,6 +77,7 @@ func run(cfgPath, dataDir string, log *slog.Logger) error {
 	defer bridge.Close()
 
 	srv := api.New(svc, cfg, st, web.FS(), version, log)
+	srv.HtREST, _ = strconv.ParseBool(os.Getenv("HELIOCONTROL_HTREST"))
 	srv.OnSettings = func(old, cur config.Config) {
 		svc.SettingsChanged(old, cur)
 		bridge.Configure(cur)

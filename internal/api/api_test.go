@@ -56,7 +56,9 @@ func setup(t *testing.T, mods ...func(*config.Config)) (*httptest.Server, *confi
 		time.Sleep(50 * time.Millisecond)
 	}
 	web := fstest.MapFS{"index.html": {Data: []byte("<app-root></app-root>")}, "main.js": {Data: []byte("x")}}
-	srv := httptest.NewServer(New(svc, cfg, st, web, "test", log).Handler())
+	api := New(svc, cfg, st, web, "test", log)
+	api.HtREST = true
+	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	return srv, cfg
 }
@@ -176,5 +178,15 @@ func TestHtREST(t *testing.T) {
 	}
 	if res, _ := do(t, c, "GET", strings.Replace(u, "geheim123", "wrong", 1)+"/api/state", ""); res.StatusCode != 401 {
 		t.Fatalf("wrong basic password: %d", res.StatusCode)
+	}
+}
+
+func TestHtRESTOffByDefault(t *testing.T) {
+	cfg, _ := config.Load(filepath.Join(t.TempDir(), "c.yaml"))
+	h := New(nil, cfg, nil, fstest.MapFS{}, "test", slog.New(slog.NewTextHandler(io.Discard, nil))).Handler()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/param/", nil))
+	if rec.Code != 404 {
+		t.Fatalf("HtREST endpoints must be off unless enabled: %d", rec.Code)
 	}
 }
