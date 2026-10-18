@@ -16,7 +16,7 @@ controller's proprietary ASCII protocol on TCP port 4001 (*not* Modbus), documen
 | **Access protection** | Local password with a hard-coded `SuperUser` bypass | Optional login with a bcrypt-hashed password, session cookies |
 | **Remote access** | Port 4001 forwarded through the router, so the heat pump was open to the internet without a password | Port 4001 stays in the LAN; reach the web UI via VPN or Home Assistant |
 | **Safety** | Every change goes straight to the heat pump | Read-only by default (enforced twice); writes checked against the controller's limits; daily write limit per setting; writing the current value again sends nothing |
-| **Smart home** | None | Home Assistant: native integration or MQTT discovery, with sensors, mode selects, setpoints, buttons |
+| **Smart home** | None | Home Assistant: native integration or MQTT discovery, with sensors, mode selects, setpoints, buttons; Loxone via an HtREST-compatible API |
 | **Temporary changes** | Not possible | "Hot water +8 K for 60 min" is restored automatically, even after a restart; the basis for PV surplus and dynamic tariffs |
 | **History** | Only on demand (WEB-Online) or the controller's small trend buffer | Always-on history (400 days), stored on change |
 | **Efficiency analysis** | None | Insights: compressor starts, runtime, cycle length, temperatures while running, deviation from target, hints for short cycling or a high heating curve |
@@ -187,6 +187,50 @@ room/building/flow-temperature/mixer control. It doesn't depend on
 heliocontrol. Install it manually by copying the folder; see
 [docs/smart-climate.md](docs/smart-climate.md).
 
+## Loxone
+
+heliocontrol speaks the parameter API of
+[HtREST](https://github.com/dstrigl/HtREST), so the
+[LoxWiki guide](https://loxwiki.atlassian.net/wiki/spaces/LOX/pages/1583089663/Heliotherm+Open+Source)
+and Loxone configurations built for it work after changing the address. You don't
+need a Raspberry Pi or `--bool-as-int`: values are always numbers.
+
+| Request | Result |
+|---|---|
+| `GET /api/v1/param/` | All parameters: `{"HKR Soll_Raum": 22.5, "Betriebsart": 1, …}` |
+| `GET /api/v1/param/?Betriebsart&Stoerung` | Only these |
+| `GET /api/v1/param/{name}` | `{"value": 22.5}` |
+| `PUT /api/v1/param/{name}` with `{"value": 22.5}` | Writes one setup point |
+| `PUT /api/v1/param/` with `{"name": value, …}` | Writes several in name order; stops at the first error and returns what was `written` |
+| `GET /api/v1/fastquery/[{name}]` | Like `param`, measuring points only |
+
+**Read** with a *Virtual HTTP Input*: URL `http://heliocontrol:8080/api/v1/param/`,
+polled every 15–60 s, and one *Virtual HTTP Input Command* per value with the
+command recognition `\iHKR Soll_Raum": \i\v`.
+
+**Write** with a *Virtual Output*: address `http://heliocontrol:8080`, and per value a
+*Virtual Output Command* with *Command for ON* `/api/v1/param/HKR Soll_Raum`,
+*HTTP method* `PUT`, *HTTP extension* `Content-Type: application/json` and
+*HTTP post command* `{"value": <v.1>}`.
+
+**Temporary values** (e.g. hot water on PV surplus) use the regular API:
+`POST /api/overrides` with `{"sp": 83, "value": 56, "minutes": 60, "source": "Loxone"}`.
+
+- With a password set, put it into the URL: `http://loxone:PASSWORD@heliocontrol:8080/…`
+  (HTTP Basic auth, any user name; accepted on all of `/api/`).
+- Values come from the poll cache, so Loxone polling costs no bus time. Settings
+  are re-read every 10 minutes and after writes. While the heat pump is offline,
+  requests return `503`.
+- Names are those of htheatpump's
+  [htparams.csv](https://htheatpump.readthedocs.io/en/latest/htparams.html)
+  ([why](docs/adr/0001-htrest-parameter-names.md)). Unknown names return `404`;
+  parameters heliocontrol doesn't poll are missing from the list.
+- Writes go through the same checks as the web UI (read-only mode, limits,
+  write budget). A Virtual Output sends on every value change, so keep Loxone
+  logic from toggling setpoints, or it hits the daily limit (`429`).
+- Not provided: HtREST's `device`, `datetime`, `faultlist`, `timeprog` and the
+  Swagger UI.
+
 ## Safety
 
 - **Read-only mode is enforced twice:** in the API, and again in the protocol
@@ -253,7 +297,7 @@ internal/store      SQLite (pure Go): log, point cache, recordings, history, ove
 internal/haentity   Home Assistant entity descriptions (shared by MQTT and the integration)
 internal/mqtt       Home Assistant MQTT discovery bridge
 custom_components/  Home Assistant custom integration (Python)
-internal/api        REST + SSE + auth, embeds the UI
+internal/api        REST + SSE + auth, HtREST-compatible Loxone API, embeds the UI
 internal/legacy     homeControl .htd / .hwo import
 web/                Angular 22 app (zoneless, standalone, signals)
 ```

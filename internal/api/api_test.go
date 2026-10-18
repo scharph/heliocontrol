@@ -22,7 +22,7 @@ import (
 	"heliocontrol/internal/store"
 )
 
-func setup(t *testing.T) (*httptest.Server, *config.Store) {
+func setup(t *testing.T, mods ...func(*config.Config)) (*httptest.Server, *config.Store) {
 	t.Helper()
 	l, _ := net.Listen("tcp", "127.0.0.1:0")
 	t.Cleanup(func() { l.Close() })
@@ -37,6 +37,9 @@ func setup(t *testing.T) (*httptest.Server, *config.Store) {
 	cfg.Update(func(c *config.Config) {
 		c.Device.Host, c.Device.Port, c.Device.AutoConnect = host, p, true
 		c.MQTT.Password = "secret"
+		for _, m := range mods {
+			m(c)
+		}
 	})
 	st, _ := store.Open(filepath.Join(dir, "db"))
 	t.Cleanup(func() { st.Close() })
@@ -126,5 +129,52 @@ func TestPasswordProtection(t *testing.T) {
 	}
 	if res, _ := do(t, c2, "GET", srv.URL+"/api/state", ""); res.StatusCode != 200 {
 		t.Fatalf("after login: %d", res.StatusCode)
+	}
+}
+
+func TestHtREST(t *testing.T) {
+	srv, _ := setup(t, func(c *config.Config) { off := false; c.ReadOnly = &off })
+	c := srv.Client()
+	_, body := do(t, c, "GET", srv.URL+"/api/v1/param/", "")
+	var all map[string]float64
+	if err := json.Unmarshal([]byte(body), &all); err != nil || all["Betriebsart"] != 1 || all["HKR Soll_Raum"] != 20 || all["Stoerung"] != 0 {
+		t.Fatalf("param list: %s", body)
+	}
+	if _, body := do(t, c, "GET", srv.URL+"/api/v1/param/?HKR%20Soll_Raum&Betriebsart", ""); body != `{"Betriebsart":1,"HKR Soll_Raum":20}`+"\n" {
+		t.Fatalf("subset: %s", body)
+	}
+	if _, body := do(t, c, "GET", srv.URL+"/api/v1/fastquery/", ""); strings.Contains(body, "Betriebsart") || !strings.Contains(body, `"Temp. Aussen"`) {
+		t.Fatalf("fastquery must return measuring points only: %s", body)
+	}
+	if res, body := do(t, c, "GET", srv.URL+"/api/v1/param/Nope", ""); res.StatusCode != 404 {
+		t.Fatalf("unknown name: %d %s", res.StatusCode, body)
+	}
+	if res, body := do(t, c, "PUT", srv.URL+"/api/v1/param/HKR%20Soll_Raum", `{"value":21.5}`); res.StatusCode != 200 || body != `{"value":21.5}`+"\n" {
+		t.Fatalf("write: %d %s", res.StatusCode, body)
+	}
+	if _, body := do(t, c, "GET", srv.URL+"/api/v1/param/HKR%20Soll_Raum", ""); body != `{"value":21.5}`+"\n" {
+		t.Fatalf("read back: %s", body)
+	}
+	if res, _ := do(t, c, "PUT", srv.URL+"/api/v1/param/Temp.%20Aussen", `{"value":1}`); res.StatusCode != 400 {
+		t.Fatalf("measuring point write: %d", res.StatusCode)
+	}
+	// multi write stops at the first failure (99 is out of range), keeping earlier writes
+	res, body := do(t, c, "PUT", srv.URL+"/api/v1/param/", `{"Betriebsart":3,"WW Normaltemp.":99}`)
+	if res.StatusCode != 400 || !strings.Contains(body, `"written":{"Betriebsart":3}`) {
+		t.Fatalf("multi write: %d %s", res.StatusCode, body)
+	}
+
+	// Basic auth once a password is set
+	do(t, c, "POST", srv.URL+"/api/settings/password", `{"new":"geheim123"}`)
+	u := strings.Replace(srv.URL, "http://", "http://loxone:geheim123@", 1)
+	if res, body := do(t, c, "GET", u+"/api/v1/param/Betriebsart", ""); res.StatusCode != 200 {
+		t.Fatalf("basic auth: %d %s", res.StatusCode, body)
+	}
+	res, _ = do(t, c, "GET", srv.URL+"/api/v1/param/Betriebsart", "")
+	if res.StatusCode != 401 || res.Header.Get("WWW-Authenticate") == "" {
+		t.Fatalf("no credentials: %d %v", res.StatusCode, res.Header)
+	}
+	if res, _ := do(t, c, "GET", strings.Replace(u, "geheim123", "wrong", 1)+"/api/state", ""); res.StatusCode != 401 {
+		t.Fatalf("wrong basic password: %d", res.StatusCode)
 	}
 }

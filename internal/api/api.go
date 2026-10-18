@@ -203,6 +203,8 @@ func (s *Server) Handler() http.Handler {
 		return writeJSON(w, ports)
 	})
 
+	s.htrestRoutes(h)
+
 	mux.Handle("/", s.static())
 	return s.authMiddleware(mux)
 }
@@ -244,28 +246,33 @@ func pathInt(r *http.Request, name string) (int64, error) {
 	return n, nil
 }
 
-func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
-	code := http.StatusBadGateway // device communication failed
+func errorStatus(err error) int {
 	var he httpError
 	var ve service.ValidationError
 	switch {
 	case errors.As(err, &he):
-		code = he.code
+		return he.code
 	case errors.As(err, &ve):
-		code = http.StatusBadRequest
+		return http.StatusBadRequest
 	case errors.Is(err, service.ErrReadOnly), errors.Is(err, device.ErrReadOnly):
-		code = http.StatusForbidden
+		return http.StatusForbidden
 	case errors.Is(err, service.ErrOffline):
-		code = http.StatusServiceUnavailable
+		return http.StatusServiceUnavailable
 	case errors.Is(err, service.ErrBusy):
-		code = http.StatusConflict
+		return http.StatusConflict
 	case errors.Is(err, service.ErrWriteBudget):
-		code = http.StatusTooManyRequests
+		return http.StatusTooManyRequests
 	case errors.Is(err, store.ErrNotFound):
-		code = http.StatusNotFound
-	case errors.Is(err, context.Canceled):
+		return http.StatusNotFound
+	}
+	return http.StatusBadGateway // device communication failed
+}
+
+func (s *Server) writeError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, context.Canceled) {
 		return
 	}
+	code := errorStatus(err)
 	if code >= 500 {
 		s.log.Warn("request failed", "path", r.URL.Path, "err", err)
 	}
@@ -281,6 +288,10 @@ func (s *Server) authRequired() bool { return s.cfg.Get().PasswordHash != "" }
 func (s *Server) authenticated(r *http.Request) bool {
 	if !s.authRequired() {
 		return true
+	}
+	// Basic auth for clients that cannot log in, e.g. Loxone (http://x:password@host/...)
+	if _, pass, ok := r.BasicAuth(); ok {
+		return bcrypt.CompareHashAndPassword([]byte(s.cfg.Get().PasswordHash), []byte(pass)) == nil
 	}
 	c, err := r.Cookie(sessionCookie)
 	if err != nil {
@@ -302,6 +313,11 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		p := r.URL.Path
 		open := !strings.HasPrefix(p, "/api/") || p == "/api/auth" || p == "/api/login" || p == "/api/version"
 		if !open && !s.authenticated(r) {
+			if strings.HasPrefix(p, "/api/v1/") {
+				// HtREST clients may only send credentials when challenged; the
+				// web UI never calls /api/v1, so it gets no browser login dialog
+				w.Header().Set("WWW-Authenticate", `Basic realm="heliocontrol"`)
+			}
 			s.writeError(w, r, httpError{http.StatusUnauthorized, "login required"})
 			return
 		}
