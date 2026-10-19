@@ -344,11 +344,6 @@ homeControl's `DataFrame.dll` (Windows PowerShell).
 This project is licensed under the MIT License — see the [LICENSE](LICENSE)
 file for details.
 
-## Credits
-
-- Based on the htheatpump library by Daniel Strigl.
-- Inspired by the original htheatpump Home Assistant integration.
-
 ## Disclaimer
 
 **WARNING:** This software allows you to control your heat pump. Incorrect
