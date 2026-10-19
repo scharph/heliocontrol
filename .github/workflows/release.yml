@@ -1,0 +1,61 @@
+name: Release binaries
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CGO_ENABLED: '0'
+      VERSION: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web UI
+        run: make web
+      - name: Test
+        run: |
+          go vet ./...
+          go test ./...
+          npm --prefix web test -- --watch=false
+      - name: Build release archives
+        shell: bash
+        run: |
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            export GOOS="${target%/*}" GOARCH="${target#*/}"
+            name="heliocontrol_${GOOS}_${GOARCH}"
+            package_dir="$(mktemp -d)"
+            binary=heliocontrol
+            if [ "$GOOS" = windows ]; then binary=heliocontrol.exe; fi
+            go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$package_dir/$binary" ./cmd/heliocontrol
+            cp heliocontrol.example.yaml README.md "$package_dir/"
+            if [ "$GOOS" = windows ]; then
+              (cd "$package_dir" && zip "$GITHUB_WORKSPACE/dist/$name.zip" "$binary" heliocontrol.example.yaml README.md)
+            else
+              tar -czf "dist/$name.tar.gz" -C "$package_dir" "$binary" heliocontrol.example.yaml README.md
+            fi
+            rm -r "$package_dir"
+          done
+          (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$VERSION" dist/* --clobber
