@@ -9,3 +9,5 @@ services:
     environment:
       # the controller clock and trend timestamps are local time
       TZ: Europe/Vienna
+      # Loxone-compatible HtREST API under /api/v1 (README → Loxone)
+      # HELIOCONTROL_HTREST: "true"
