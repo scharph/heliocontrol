@@ -344,6 +344,12 @@ homeControl's `DataFrame.dll` (Windows PowerShell).
 This project is licensed under the MIT License — see the [LICENSE](LICENSE)
 file for details.
 
+heliocontrol is an independent implementation developed by reverse engineering
+Heliotherm homeControl and observing the controller's protocol, as documented
+in [docs/protocol.md](docs/protocol.md). No code was copied or translated from
+the htheatpump library or its Home Assistant integration. The optional
+HtREST-compatible API uses the same endpoints as HtREST for compatibility.
+
 ## Disclaimer
 
 **WARNING:** This software allows you to control your heat pump. Incorrect
