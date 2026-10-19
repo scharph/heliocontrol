@@ -5,7 +5,7 @@ Windows tool for Heliotherm heat pumps with the *web control* controller.
 heliocontrol has a Go server, an Angular web UI, and a Home Assistant
 integration (native custom component or MQTT discovery). It talks the
 controller's proprietary ASCII protocol on TCP port 4001 (*not* Modbus), documented in
-[docs/protocol.md](docs/protocol.md).
+[docs/protocol.md](docs/protocol.md). (No HtRest needed)
 
 ![heliocontrol overview with heating curve](docs/screenshot.png)
 
