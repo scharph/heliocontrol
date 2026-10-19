@@ -338,3 +338,23 @@ starts the Angular dev server with a proxy to the API on :8080.
 
 `tools/golden/golden.ps1` regenerates `internal/frame/testdata/golden.txt` from
 homeControl's `DataFrame.dll` (Windows PowerShell).
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE)
+file for details.
+
+## Credits
+
+- Based on the htheatpump library by Daniel Strigl.
+- Inspired by the original htheatpump Home Assistant integration.
+
+## Disclaimer
+
+**WARNING:** This software allows you to control your heat pump. Incorrect
+settings could damage your heat pump or cause it to operate inefficiently.
+Use at your own risk!
+
+The author does not provide any guarantee or warranty concerning correctness,
+functionality, or performance and does not accept any liability for damage
+caused by this software.
