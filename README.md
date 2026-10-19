@@ -5,48 +5,96 @@ Windows tool for Heliotherm heat pumps with the *web control* controller.
 heliocontrol has a Go server, an Angular web UI, and a Home Assistant
 integration (native custom component or MQTT discovery). It talks the
 controller's proprietary ASCII protocol on TCP port 4001 (*not* Modbus), documented in
-[docs/protocol.md](docs/protocol.md).
-
-## What's better than the old homeControl.exe
-
-| | homeControl 2.1 (Windows) | heliocontrol |
-|---|---|---|
-| **Runs on** | One Windows PC with .NET 4.0, open the whole time | A server (Docker, Linux, Windows, NAS); use it from any browser, phone included |
-| **License** | License code per heat pump serial number, from the installer | None needed (the old check never involved the controller) |
-| **Access protection** | Local password with a hard-coded `SuperUser` bypass | Optional login with a bcrypt-hashed password, session cookies |
-| **Remote access** | Port 4001 forwarded through the router, so the heat pump was open to the internet without a password | Port 4001 stays in the LAN; reach the web UI via VPN or Home Assistant |
-| **Safety** | Every change goes straight to the heat pump | Read-only by default (enforced twice); writes checked against the controller's limits; daily write limit per setting; writing the current value again sends nothing |
-| **Smart home** | None | Home Assistant: native integration or MQTT discovery, with sensors, mode selects, setpoints, buttons; Loxone via an HtREST-compatible API |
-| **Temporary changes** | Not possible | "Hot water +8 K for 60 min" is restored automatically, even after a restart; the basis for PV surplus and dynamic tariffs |
-| **History** | Only on demand (WEB-Online) or the controller's small trend buffer | Always-on history (400 days), stored on change |
-| **Efficiency analysis** | None | Insights: compressor starts, runtime, cycle length, temperatures while running, deviation from target, hints for short cycling or a high heating curve |
-| **Data shown** | Fixed tabs; some labels wrong for newer firmware | Same pages, built from the controller's own descriptions; unused points hidden; a diagnostics page with 28 extra values (hot gas, subcooling, inverter …); all 488 points browsable |
-| **Live updates** | Manual refresh, or a timer that re-read everything | Values pushed to the browser; settings read rarely, so the controller's line is mostly free |
-| **Reliability** | Replies could mix up after timeouts; garbled umlauts | Each reply matched to its request; correct text decoding; reconnect with backoff |
-| **Data files** | Proprietary `.hwo` / `.htd` | Imports those, exports CSV, and stores recordings in a database |
-| **Bugs fixed** | Brine/water tabs show the heating pump as compressor; trend end times in a 12-hour clock | Fixed |
-| **Languages, look** | German/English, fixed window | German/English, dark mode, phone layout |
-| **Tested** | — | Protocol checked against the original DLL, end-to-end tests with a simulated heat pump, MQTT broker and Home Assistant, verified read-only on a real controller |
+[docs/protocol.md](docs/protocol.md). (No HtRest needed)
 
 ![heliocontrol overview with heating curve](docs/screenshot.png)
 
 ## Quick start
 
+Ready-to-use binaries for Linux, macOS, and Windows (amd64 and arm64) are
+attached to each published GitHub release. Download and extract the archive
+for your platform, then run `./heliocontrol` (or `heliocontrol.exe` on Windows)
+in a writable directory and open <http://localhost:8080>. The web UI is
+included; set the heat pump address under *Settings*, or copy
+`heliocontrol.example.yaml` to `heliocontrol.yaml` and edit it before starting.
+`checksums.txt` contains SHA-256 checksums for the archives.
+
+Alternatively, build from source or use Docker:
+
 ```sh
-cp heliocontrol.example.yaml heliocontrol.yaml   # set device.host
-docker compose up -d                              # or: make all && bin/heliocontrol
+docker compose up -d --build
 ```
 
-Open <http://localhost:8080>. With Docker, everything lives in `./data/`: put
-`heliocontrol.yaml` there (or start without one and set the heat pump address
-under *Settings*, which writes the file). The container fixes the ownership of
-`./data` on start, so it may also be created by Docker.
+Open <http://localhost:8080> and set the heat pump address under *Settings*.
+For installation on a server, see [Server setup with Docker Compose](#server-setup-with-docker-compose).
 
 Nothing is written to the heat pump until you switch read-only mode off in the
 settings. To try it without a heat pump:
 
 ```sh
 make run-sim          # simulated controller + server, writes allowed
+```
+
+## Server setup with Docker Compose
+
+You need Docker Engine with the Docker Compose plugin, Git, and a server that
+can reach the heat pump's LAN modem on TCP port 4001.
+
+1. Clone the repository on the server:
+
+   ```sh
+   git clone https://github.com/scharph/heliocontrol.git
+   cd heliocontrol
+   ```
+
+2. In `docker-compose.yml`, set `TZ` to the heat pump's local timezone
+   (default: `Europe/Vienna`). The controller clock and trend timestamps use
+   local time. The default port mapping serves the web UI on port 8080; change
+   the left side of `8080:8080` if that port is already in use.
+
+3. Build and start the server in the background:
+
+   ```sh
+   docker compose up -d --build
+   ```
+
+   Compose builds the Go server and web UI from source, so no local Go or Node
+   installation is needed. The service restarts automatically after a server
+   reboot, provided Docker starts on boot.
+
+4. Open `http://<server-ip>:8080` in your browser. Under *Settings*, enter the
+   heat pump's LAN modem address and port `4001`, and enable automatic
+   connection. Leave read-only mode enabled while checking the live values.
+   You can also enable access protection with a password in *Settings*.
+   For access from outside your LAN, use a VPN (see [Safety](#safety)).
+
+Configuration, the SQLite database, and recordings persist in `./data/`, which
+is mounted at `/data` in the container. Settings saves the configuration as
+`./data/heliocontrol.yaml`. To configure it before the first start instead:
+
+```sh
+mkdir -p data
+cp heliocontrol.example.yaml data/heliocontrol.yaml
+# Edit data/heliocontrol.yaml and set device.host to the LAN modem address.
+```
+
+The container fixes ownership of `./data` on startup and then runs as the
+unprivileged `helio` user. Back up this directory; stop the service before
+copying it to get a consistent database backup.
+
+Run these commands from the repository directory:
+
+```sh
+docker compose logs -f heliocontrol   # follow server logs
+docker compose stop                  # stop without removing the container
+docker compose down                  # remove the container; ./data is retained
+```
+
+To update, back up `./data`, then pull the latest source and rebuild:
+
+```sh
+git pull --ff-only
+docker compose up -d --build
 ```
 
 ## Where homeControl's features went
@@ -69,6 +117,27 @@ make run-sim          # simulated controller + server, writes allowed
 Not reimplemented: licensing, the online updater, the bootloader/firmware
 update commands, modem phone numbers, and the old `.fwo`/`.fwt` formats of
 homeControl 1.x.
+
+## What's better than the old homeControl.exe
+
+| | homeControl 2.1 (Windows) | heliocontrol |
+|---|---|---|
+| **Runs on** | One Windows PC with .NET 4.0, open the whole time | A server (Docker, Linux, Windows, NAS); use it from any browser, phone included |
+| **License** | License code per heat pump serial number, from the installer | None needed (the old check never involved the controller) |
+| **Access protection** | Local password with a hard-coded `SuperUser` bypass | Optional login with a bcrypt-hashed password, session cookies |
+| **Remote access** | Port 4001 forwarded through the router, so the heat pump was open to the internet without a password | Port 4001 stays in the LAN; reach the web UI via VPN or Home Assistant |
+| **Safety** | Every change goes straight to the heat pump | Read-only by default (enforced twice); writes checked against the controller's limits; daily write limit per setting; writing the current value again sends nothing |
+| **Smart home** | None | Home Assistant: native integration or MQTT discovery, with sensors, mode selects, setpoints, buttons; Loxone via an HtREST-compatible API |
+| **Temporary changes** | Not possible | "Hot water +8 K for 60 min" is restored automatically, even after a restart; the basis for PV surplus and dynamic tariffs |
+| **History** | Only on demand (WEB-Online) or the controller's small trend buffer | Always-on history (400 days), stored on change |
+| **Efficiency analysis** | None | Insights: compressor starts, runtime, cycle length, temperatures while running, deviation from target, hints for short cycling or a high heating curve |
+| **Data shown** | Fixed tabs; some labels wrong for newer firmware | Same pages, built from the controller's own descriptions; unused points hidden; a diagnostics page with 28 extra values (hot gas, subcooling, inverter …); all 488 points browsable |
+| **Live updates** | Manual refresh, or a timer that re-read everything | Values pushed to the browser; settings read rarely, so the controller's line is mostly free |
+| **Reliability** | Replies could mix up after timeouts; garbled umlauts | Each reply matched to its request; correct text decoding; reconnect with backoff |
+| **Data files** | Proprietary `.hwo` / `.htd` | Imports those, exports CSV, and stores recordings in a database |
+| **Bugs fixed** | Brine/water tabs show the heating pump as compressor; trend end times in a 12-hour clock | Fixed |
+| **Languages, look** | German/English, fixed window | German/English, dark mode, phone layout |
+| **Tested** | — | Protocol checked against the original DLL, end-to-end tests with a simulated heat pump, MQTT broker and Home Assistant, verified read-only on a real controller |
 
 ## Beyond homeControl
 
@@ -316,3 +385,24 @@ starts the Angular dev server with a proxy to the API on :8080.
 
 `tools/golden/golden.ps1` regenerates `internal/frame/testdata/golden.txt` from
 homeControl's `DataFrame.dll` (Windows PowerShell).
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE)
+file for details.
+
+heliocontrol is an independent implementation developed by reverse engineering
+Heliotherm homeControl and observing the controller's protocol, as documented
+in [docs/protocol.md](docs/protocol.md). No code was copied or translated from
+the htheatpump library or its Home Assistant integration. The optional
+HtREST-compatible API uses the same endpoints as HtREST for compatibility.
+
+## Disclaimer
+
+**WARNING:** This software allows you to control your heat pump. Incorrect
+settings could damage your heat pump or cause it to operate inefficiently.
+Use at your own risk!
+
+The author does not provide any guarantee or warranty concerning correctness,
+functionality, or performance and does not accept any liability for damage
+caused by this software.
