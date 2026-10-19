@@ -11,6 +11,16 @@ controller's proprietary ASCII protocol on TCP port 4001 (*not* Modbus), documen
 
 ## Quick start
 
+Ready-to-use binaries for Linux, macOS, and Windows (amd64 and arm64) are
+attached to each published GitHub release. Download and extract the archive
+for your platform, then run `./heliocontrol` (or `heliocontrol.exe` on Windows)
+in a writable directory and open <http://localhost:8080>. The web UI is
+included; set the heat pump address under *Settings*, or copy
+`heliocontrol.example.yaml` to `heliocontrol.yaml` and edit it before starting.
+`checksums.txt` contains SHA-256 checksums for the archives.
+
+Alternatively, build from source or use Docker:
+
 ```sh
 cp heliocontrol.example.yaml heliocontrol.yaml   # set device.host
 docker compose up -d                              # or: make all && bin/heliocontrol
