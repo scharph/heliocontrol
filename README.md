@@ -12,20 +12,79 @@ controller's proprietary ASCII protocol on TCP port 4001 (*not* Modbus), documen
 ## Quick start
 
 ```sh
-cp heliocontrol.example.yaml heliocontrol.yaml   # set device.host
-docker compose up -d                              # or: make all && bin/heliocontrol
+docker compose up -d --build
 ```
 
-Open <http://localhost:8080>. With Docker, everything lives in `./data/`: put
-`heliocontrol.yaml` there (or start without one and set the heat pump address
-under *Settings*, which writes the file). The container fixes the ownership of
-`./data` on start, so it may also be created by Docker.
+Open <http://localhost:8080> and set the heat pump address under *Settings*.
+For installation on a server, see [Server setup with Docker Compose](#server-setup-with-docker-compose).
 
 Nothing is written to the heat pump until you switch read-only mode off in the
 settings. To try it without a heat pump:
 
 ```sh
 make run-sim          # simulated controller + server, writes allowed
+```
+
+## Server setup with Docker Compose
+
+You need Docker Engine with the Docker Compose plugin, Git, and a server that
+can reach the heat pump's LAN modem on TCP port 4001.
+
+1. Clone the repository on the server:
+
+   ```sh
+   git clone https://github.com/scharph/heliocontrol.git
+   cd heliocontrol
+   ```
+
+2. In `docker-compose.yml`, set `TZ` to the heat pump's local timezone
+   (default: `Europe/Vienna`). The controller clock and trend timestamps use
+   local time. The default port mapping serves the web UI on port 8080; change
+   the left side of `8080:8080` if that port is already in use.
+
+3. Build and start the server in the background:
+
+   ```sh
+   docker compose up -d --build
+   ```
+
+   Compose builds the Go server and web UI from source, so no local Go or Node
+   installation is needed. The service restarts automatically after a server
+   reboot, provided Docker starts on boot.
+
+4. Open `http://<server-ip>:8080` in your browser. Under *Settings*, enter the
+   heat pump's LAN modem address and port `4001`, and enable automatic
+   connection. Leave read-only mode enabled while checking the live values.
+   You can also enable access protection with a password in *Settings*.
+   For access from outside your LAN, use a VPN (see [Safety](#safety)).
+
+Configuration, the SQLite database, and recordings persist in `./data/`, which
+is mounted at `/data` in the container. Settings saves the configuration as
+`./data/heliocontrol.yaml`. To configure it before the first start instead:
+
+```sh
+mkdir -p data
+cp heliocontrol.example.yaml data/heliocontrol.yaml
+# Edit data/heliocontrol.yaml and set device.host to the LAN modem address.
+```
+
+The container fixes ownership of `./data` on startup and then runs as the
+unprivileged `helio` user. Back up this directory; stop the service before
+copying it to get a consistent database backup.
+
+Run these commands from the repository directory:
+
+```sh
+docker compose logs -f heliocontrol   # follow server logs
+docker compose stop                  # stop without removing the container
+docker compose down                  # remove the container; ./data is retained
+```
+
+To update, back up `./data`, then pull the latest source and rebuild:
+
+```sh
+git pull --ff-only
+docker compose up -d --build
 ```
 
 ## Where homeControl's features went
