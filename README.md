@@ -338,3 +338,24 @@ starts the Angular dev server with a proxy to the API on :8080.
 
 `tools/golden/golden.ps1` regenerates `internal/frame/testdata/golden.txt` from
 homeControl's `DataFrame.dll` (Windows PowerShell).
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE)
+file for details.
+
+heliocontrol is an independent implementation developed by reverse engineering
+Heliotherm homeControl and observing the controller's protocol, as documented
+in [docs/protocol.md](docs/protocol.md). No code was copied or translated from
+the htheatpump library or its Home Assistant integration. The optional
+HtREST-compatible API uses the same endpoints as HtREST for compatibility.
+
+## Disclaimer
+
+**WARNING:** This software allows you to control your heat pump. Incorrect
+settings could damage your heat pump or cause it to operate inefficiently.
+Use at your own risk!
+
+The author does not provide any guarantee or warranty concerning correctness,
+functionality, or performance and does not accept any liability for damage
+caused by this software.
