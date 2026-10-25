@@ -26,6 +26,15 @@ const (
 	mpFlow             = 3
 	mpReturn           = 4
 	mpReturnTarget     = 57
+	mpRequest          = 56 // Anforderung (enum)
+	mpHeatOut          = 52 // Heizen abgegeben (kWh counter, energy page)
+	mpHeatIn           = 53 // Heizen aufgenommen (kWh counter, energy page)
+
+	requestHeating = 2
+	requestDHW     = 3
+
+	spHeatingLimit = 76 // Heizgrenze
+	spCurveAtLimit = 80 // RL Soll bei Heizgrenze
 )
 
 type lastValue struct {

@@ -48,6 +48,20 @@ const ranges = [
               <div>
                 <strong>{{ h.title | tx }}</strong>
                 <div>{{ h.detail | tx }}</div>
+                @if (h.tips?.length) {
+                  <details class="tips">
+                    <summary>{{ 'ins_tips' | t }} ({{ h.tips!.length }})</summary>
+                    <ul>
+                      @for (tip of h.tips; track tip.source + $index) {
+                        <li>
+                          {{ tip.text | tx }}
+                          <a [href]="tip.source" target="_blank" rel="noopener noreferrer">{{ 'ins_source' | t }}</a>
+                        </li>
+                      }
+                    </ul>
+                    <div class="muted small">{{ 'ins_tips_note' | t }}</div>
+                  </details>
+                }
               </div>
             </div>
           } @empty {
@@ -80,6 +94,8 @@ const ranges = [
               <th class="r">{{ 'ins_return' | t }}</th>
               <th class="r">{{ 'ins_spread' | t }}</th>
               <th class="r">{{ 'ins_deviation' | t }}</th>
+              <th class="r" [title]="'ins_dhw_interrupts' | t">{{ 'ins_dhw' | t }}</th>
+              <th class="r">{{ 'ins_cop' | t }}</th>
               <th class="r">{{ 'ins_coverage' | t }}</th>
             </tr>
           </thead>
@@ -97,6 +113,13 @@ const ranges = [
                 <td class="r num">{{ deg(d.returnRunning) }}</td>
                 <td class="r num">{{ d.spread === undefined ? '–' : n(d.spread, 1) + ' K' }}</td>
                 <td class="r num">{{ d.deviation === undefined ? '–' : (d.deviation > 0 ? '+' : '') + n(d.deviation, 1) + ' K' }}</td>
+                <td class="r num" [title]="d.dhwInterrupts === undefined ? '' : ('ins_dhw_interrupts' | t) + ': ' + d.dhwInterrupts">
+                  {{ d.dhwHours === undefined ? '–' : n(d.dhwHours, 1) + ' h' }}
+                  @if (d.dhwInterrupts) {
+                    <span class="muted">({{ d.dhwInterrupts }}×)</span>
+                  }
+                </td>
+                <td class="r num">{{ n(d.cop, 2) }}</td>
                 <td class="r num muted">{{ n(d.coverage * 100, 0) }} %</td>
               </tr>
             }
@@ -111,6 +134,11 @@ const ranges = [
     .small { font-size: 12px; }
     .note { padding-top: 8px; }
     tr.thin td { opacity: 0.55; }
+    .tips { margin-top: 6px; }
+    .tips summary { cursor: pointer; font-size: 13px; }
+    .tips ul { margin: 6px 0; padding-left: 18px; }
+    .tips li { margin-bottom: 4px; }
+    .tips a { margin-left: 4px; font-size: 12px; }
   `,
 })
 export class InsightsPage {

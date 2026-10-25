@@ -9,6 +9,9 @@ import { Toasts } from '../core/toast';
 const colors2 = ['#9ca3af', '#22c55e']; // off, on
 const colors3 = ['#22c55e', '#3b82f6', '#ef4444']; // normal, reduced, boost
 
+/** The editable fields of an event (day and index stay with the slot). */
+const pick = ({ state, begin, end }: TimeProgramEvent) => ({ state, begin, end });
+
 @Component({
   selector: 'hc-time-programs',
   imports: [TPipe],
@@ -110,7 +113,17 @@ const colors3 = ['#22c55e', '#3b82f6', '#ef4444']; // normal, reduced, boost
                       </select>
                       <i class="swatch" [style.background]="color(ev.state)"></i>
                     </td>
-                    <td class="num">{{ ev.begin }}</td>
+                    <td>
+                      @if (ev.event === 0 || ev.begin === '24:00') {
+                        <span class="num">{{ ev.begin }}</span>
+                      } @else {
+                        <select [value]="ev.begin" (change)="setBegin(ev, $event)">
+                          @for (t of beginTimes(ev); track t) {
+                            <option [value]="t" [selected]="t === ev.begin">{{ t }}</option>
+                          }
+                        </select>
+                      }
+                    </td>
                     <td>
                       <select [value]="ev.end" (change)="setEnd(ev, $event)" [disabled]="ev.begin === '24:00'">
                         @for (t of endTimes(ev); track t) {
@@ -118,11 +131,26 @@ const colors3 = ['#22c55e', '#3b82f6', '#ef4444']; // normal, reduced, boost
                         }
                       </select>
                     </td>
-                    <td class="muted small">{{ ev.begin === '24:00' ? ('tp_unused' | t) : '' }}</td>
+                    <td class="actions">
+                      @if (ev.begin === '24:00') {
+                        <span class="muted small">{{ 'tp_unused' | t }}</span>
+                      } @else {
+                        <button
+                          class="small"
+                          (click)="split(ev)"
+                          [disabled]="!canSplit(ev)"
+                          [title]="dayFull(ev.day) ? ('tp_split_full' | t) : ''"
+                        >
+                          ⊕ {{ 'tp_split' | t }}
+                        </button>
+                        <button class="small" (click)="remove(ev)" [disabled]="usedCount(ev.day) < 2" [title]="'tp_remove' | t">✕</button>
+                      }
+                    </td>
                   </tr>
                 }
               </tbody>
             </table>
+            <div class="muted small">{{ 'tp_gapless_hint' | t }}</div>
             <div class="row">
               <span class="spacer"></span>
               @if (dirtyPrograms().has(p.id)) {
@@ -163,6 +191,8 @@ const colors3 = ['#22c55e', '#3b82f6', '#ef4444']; // normal, reduced, boost
     tr.unused td { opacity: 0.5; }
     .small { font-size: 12px; }
     select { min-width: 110px; }
+    .actions { white-space: nowrap; }
+    .actions button + button { margin-left: 4px; }
   `,
 })
 export class TimeProgramsPage {
@@ -261,18 +291,78 @@ export class TimeProgramsPage {
     this.updateDay(ev.day, (evs) => (evs[ev.event].state = v));
   }
 
-  /** Changing an end time moves the following periods, as in homeControl. */
+  /**
+   * Valid begin times of an event after the first: after the previous begin,
+   * before 24:00. The controller stores a day without gaps, so a begin is the
+   * previous period's end.
+   */
+  protected beginTimes(ev: TimeProgramEvent): string[] {
+    const prev = this.dayEvents(ev.day)[ev.event - 1];
+    if (!prev) return [ev.begin];
+    return this.endTimes(prev).filter((t) => t !== '24:00' || t === ev.begin);
+  }
+
+  protected setBegin(ev: TimeProgramEvent, e: Event) {
+    this.moveEnd(ev.day, ev.event - 1, (e.target as HTMLSelectElement).value);
+  }
+
   protected setEnd(ev: TimeProgramEvent, e: Event) {
-    const end = (e.target as HTMLSelectElement).value;
+    this.moveEnd(ev.day, ev.event, (e.target as HTMLSelectElement).value);
+  }
+
+  /** Changing an end time moves the following periods, as in homeControl. */
+  private moveEnd(day: number, event: number, end: string) {
     const step = this.sel()?.step || 15;
-    this.updateDay(ev.day, (evs) => {
-      evs[ev.event].end = end;
-      for (let i = ev.event + 1; i < evs.length; i++) {
+    this.updateDay(day, (evs) => {
+      evs[event].end = end;
+      for (let i = event + 1; i < evs.length; i++) {
         evs[i].begin = evs[i - 1].end;
         if (toMinutes(evs[i].end) < toMinutes(evs[i].begin) || i === evs.length - 1) {
           evs[i].end = i === evs.length - 1 ? '24:00' : fromMinutes(Math.min(1440, toMinutes(evs[i].begin) + step));
         }
       }
+    });
+  }
+
+  protected usedCount(day: number) {
+    return this.dayEvents(day).filter((e) => e.begin !== '24:00').length;
+  }
+
+  /** All events of the day are in use, so none can be added. */
+  protected dayFull(day: number) {
+    const evs = this.dayEvents(day);
+    return evs.length > 0 && evs[evs.length - 1].begin !== '24:00';
+  }
+
+  protected canSplit(ev: TimeProgramEvent) {
+    const step = this.sel()?.step || 15;
+    return ev.begin !== '24:00' && !this.dayFull(ev.day) && toMinutes(ev.end) - toMinutes(ev.begin) >= 2 * step;
+  }
+
+  /** Splits a period in two halves with the same state; later periods move down one slot. */
+  protected split(ev: TimeProgramEvent) {
+    if (!this.canSplit(ev)) return;
+    const step = this.sel()?.step || 15;
+    const b = toMinutes(ev.begin);
+    const mid = fromMinutes(b + Math.floor((toMinutes(ev.end) - b) / 2 / step) * step);
+    this.updateDay(ev.day, (evs) => {
+      const i = ev.event;
+      for (let j = evs.length - 1; j > i + 1; j--) Object.assign(evs[j], pick(evs[j - 1]));
+      Object.assign(evs[i + 1], { state: evs[i].state, begin: mid, end: evs[i].end });
+      evs[i].end = mid;
+    });
+  }
+
+  /** Removes a period: the previous one (or, for the first, the next one) takes over its time. */
+  protected remove(ev: TimeProgramEvent) {
+    if (this.usedCount(ev.day) < 2) return;
+    this.updateDay(ev.day, (evs) => {
+      const i = ev.event;
+      const removed = pick(evs[i]);
+      for (let j = i; j < evs.length - 1; j++) Object.assign(evs[j], pick(evs[j + 1]));
+      Object.assign(evs[evs.length - 1], { begin: '24:00', end: '24:00' });
+      if (i > 0) evs[i - 1].end = removed.end;
+      else evs[0].begin = '00:00';
     });
   }
 

@@ -111,12 +111,24 @@ export interface DayInsight {
   spread?: number;
   targetRunning?: number;
   deviation?: number;
+  heatingHours?: number;
+  dhwHours?: number;
+  dhwInterrupts?: number;
+  heatOutKWh?: number;
+  heatInKWh?: number;
+  cop?: number;
+}
+
+export interface Tip {
+  text: Text;
+  source: string;
 }
 
 export interface Hint {
   level: "info" | "warn";
   title: Text;
   detail: Text;
+  tips?: Tip[];
 }
 
 export interface Insights {
