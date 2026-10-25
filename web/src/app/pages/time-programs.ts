@@ -94,6 +94,7 @@ const pick = ({ state, begin, end }: TimeProgramEvent) => ({ state, begin, end }
             <table class="table">
               <thead>
                 <tr>
+                  <th>{{ 'tp_day' | t }}</th>
                   <th>#</th>
                   <th>{{ 'tp_state' | t }}</th>
                   <th>{{ 'tp_begin' | t }}</th>
@@ -104,6 +105,7 @@ const pick = ({ state, begin, end }: TimeProgramEvent) => ({ state, begin, end }
               <tbody>
                 @for (ev of dayEvents(day()); track ev.event) {
                   <tr [class.unused]="ev.begin === '24:00'">
+                    <td class="dayshort">{{ dayShort(ev.day) }}</td>
                     <td class="muted">{{ ev.event + 1 }}</td>
                     <td>
                       <select [value]="ev.state" (change)="setState(ev, $event)" [disabled]="ev.begin === '24:00'">
@@ -114,8 +116,18 @@ const pick = ({ state, begin, end }: TimeProgramEvent) => ({ state, begin, end }
                       <i class="swatch" [style.background]="color(ev.state)"></i>
                     </td>
                     <td>
-                      @if (ev.event === 0 || ev.begin === '24:00') {
+                      @if (ev.begin === '24:00') {
                         <span class="num">{{ ev.begin }}</span>
+                      } @else if (ev.event === 0) {
+                        @if (canInsertBefore(ev)) {
+                          <select [value]="ev.begin" (change)="setFirstBegin(ev, $event)" [title]="'tp_first_begin' | t">
+                            @for (t of firstBeginTimes(ev); track t) {
+                              <option [value]="t" [selected]="t === ev.begin">{{ t }}</option>
+                            }
+                          </select>
+                        } @else {
+                          <span class="num" [title]="'tp_split_full' | t">{{ ev.begin }}</span>
+                        }
                       } @else {
                         <select [value]="ev.begin" (change)="setBegin(ev, $event)">
                           @for (t of beginTimes(ev); track t) {
@@ -192,6 +204,7 @@ const pick = ({ state, begin, end }: TimeProgramEvent) => ({ state, begin, end }
     .small { font-size: 12px; }
     select { min-width: 110px; }
     .actions { white-space: nowrap; }
+    .dayshort { font-weight: 600; }
     .actions button + button { margin-left: 4px; }
   `,
 })
@@ -332,6 +345,36 @@ export class TimeProgramsPage {
   protected dayFull(day: number) {
     const evs = this.dayEvents(day);
     return evs.length > 0 && evs[evs.length - 1].begin !== '24:00';
+  }
+
+  /** A later begin for the first period needs a free slot for the new 00:00 period. */
+  protected canInsertBefore(ev: TimeProgramEvent) {
+    const step = this.sel()?.step || 15;
+    return !this.dayFull(ev.day) && toMinutes(ev.end) - toMinutes(ev.begin) >= 2 * step;
+  }
+
+  /** 00:00, or a later begin up to one step before the end. */
+  protected firstBeginTimes(ev: TimeProgramEvent): string[] {
+    const step = this.sel()?.step || 15;
+    const out = ['00:00'];
+    for (let m = step; m < toMinutes(ev.end); m += step) out.push(fromMinutes(m));
+    return out;
+  }
+
+  /**
+   * The day must start at 00:00, so a later begin inserts a period before it.
+   * It takes the state of the day's last period: the night continues.
+   */
+  protected setFirstBegin(ev: TimeProgramEvent, e: Event) {
+    const begin = (e.target as HTMLSelectElement).value;
+    if (begin === '00:00' || !this.canInsertBefore(ev)) return;
+    this.updateDay(ev.day, (evs) => {
+      const used = evs.filter((x) => x.begin !== '24:00');
+      const night = used[used.length - 1].state;
+      for (let j = evs.length - 1; j > 0; j--) Object.assign(evs[j], pick(evs[j - 1]));
+      Object.assign(evs[0], { state: night, begin: '00:00', end: begin });
+      evs[1].begin = begin;
+    });
   }
 
   protected canSplit(ev: TimeProgramEvent) {
