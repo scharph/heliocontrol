@@ -76,6 +76,11 @@ type Service struct {
 	budget       writeBudget
 	history      historyRecorder
 	overrides    map[int]store.Override // temporary setpoints by SP
+	// writeSeq counts setSP calls and spWritten holds the count at each SP's
+	// last write, so a read that started before a write cannot overwrite the
+	// newer value in the snapshot (see writeMark).
+	writeSeq  uint64
+	spWritten map[int]uint64
 }
 
 var (
@@ -85,7 +90,7 @@ var (
 )
 
 func New(cfg *config.Store, st *store.Store, log *slog.Logger) *Service {
-	s := &Service{cfg: cfg, store: st, log: log, Bus: NewBus(), wake: make(chan struct{}, 1), jobs: make(chan struct{}, 1), overrides: map[int]store.Override{},
+	s := &Service{cfg: cfg, store: st, log: log, Bus: NewBus(), wake: make(chan struct{}, 1), jobs: make(chan struct{}, 1), overrides: map[int]store.Override{}, spWritten: map[int]uint64{},
 		meta: map[protocol.Kind]map[int]protocol.Point{protocol.MP: {}, protocol.SP: {}}}
 	s.snap = Snapshot{Status: Offline, MP: map[int]float64{}, SP: map[int]float64{}}
 	s.snap.Panels = catalog.Resolve(catalog.Installation{})
@@ -116,7 +121,7 @@ func (s *Service) Run(ctx context.Context) {
 	}
 	s.want = s.cfg.Get().Device.AutoConnect
 	s.refreshSettings()
-	backoff := 5 * time.Second
+	backoff := minBackoff
 	for ctx.Err() == nil {
 		s.mu.RLock()
 		want := s.want
@@ -129,7 +134,7 @@ func (s *Service) Run(ctx context.Context) {
 			}
 			continue
 		}
-		err := s.session(ctx)
+		online, err := s.session(ctx)
 		if ctx.Err() != nil {
 			return
 		}
@@ -139,17 +144,33 @@ func (s *Service) Run(ctx context.Context) {
 		if err != nil && want {
 			s.setStatus(Failed, err.Error())
 			s.event("error", "Verbindung unterbrochen", err.Error())
+			var wait time.Duration
+			wait, backoff = retryDelay(backoff, online)
 			select {
 			case <-ctx.Done():
 				return
 			case <-s.wake:
-			case <-time.After(backoff):
+			case <-time.After(wait):
 			}
-			backoff = min(2*backoff, time.Minute)
 			continue
 		}
-		backoff = 5 * time.Second
+		backoff = minBackoff
 	}
+}
+
+const (
+	minBackoff = 5 * time.Second
+	maxBackoff = time.Minute
+)
+
+// retryDelay returns how long to wait before the next connection attempt and
+// the backoff to use after it. A session that was online starts over at
+// minBackoff: only consecutive failed attempts slow the retries down.
+func retryDelay(backoff time.Duration, wasOnline bool) (wait, next time.Duration) {
+	if wasOnline {
+		backoff = minBackoff
+	}
+	return backoff, min(2*backoff, maxBackoff)
 }
 
 // Connect / Disconnect set whether a session is wanted.
@@ -250,34 +271,35 @@ func (s *Service) Client() (*device.Client, error) {
 	return s.client, nil
 }
 
-// session connects, logs in and polls until the connection fails.
-func (s *Service) session(ctx context.Context) error {
+// session connects, logs in and polls until the connection fails. online reports
+// whether the session got as far as polling.
+func (s *Service) session(ctx context.Context) (online bool, err error) {
 	cfg := s.cfg.Get()
 	s.setStatus(Connecting, "")
 	dctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	c, err := device.Dial(dctx, cfg.Device.TransportConfig, s.log)
 	cancel()
 	if err != nil {
-		return fmt.Errorf("connect %s: %w", cfg.Device.TransportConfig, err)
+		return false, fmt.Errorf("connect %s: %w", cfg.Device.TransportConfig, err)
 	}
 	c.SetReadOnly(cfg.IsReadOnly())
 	defer c.Close()
 	if err := c.Login(ctx); err != nil {
-		return err
+		return false, err
 	}
 	id, err := c.ReadID(ctx)
 	if err != nil {
-		return fmt.Errorf("read controller id: %w", err)
+		return false, fmt.Errorf("read controller id: %w", err)
 	}
 	if cfg.Device.ExpectedID != 0 && id != cfg.Device.ExpectedID {
 		s.mu.Lock()
 		s.want = false
 		s.mu.Unlock()
-		return fmt.Errorf("controller id %d does not match the configured id %d", id, cfg.Device.ExpectedID)
+		return false, fmt.Errorf("controller id %d does not match the configured id %d", id, cfg.Device.ExpectedID)
 	}
 	conf, err := c.ReadPoints(ctx, protocol.SP, catalog.ConfigPoints)
 	if err != nil {
-		return fmt.Errorf("read installation: %w", err)
+		return false, fmt.Errorf("read installation: %w", err)
 	}
 	inst := catalog.Installation{
 		PlantType: int(conf[protocol.PlantTypeSP].Val),
@@ -324,10 +346,10 @@ func (s *Service) session(ctx context.Context) error {
 		}
 		if err != nil {
 			if errors.Is(err, device.ErrClosed) || ctx.Err() != nil {
-				return err
+				return true, err
 			}
 			if failures++; failures >= 3 {
-				return fmt.Errorf("polling failed: %w", err)
+				return true, fmt.Errorf("polling failed: %w", err)
 			}
 			s.log.Warn("poll failed", "err", err)
 		} else {
@@ -335,9 +357,9 @@ func (s *Service) session(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return true, ctx.Err()
 		case <-c.Done():
-			return c.Err()
+			return true, c.Err()
 		case <-time.After(time.Duration(s.cfg.Get().PollSeconds) * time.Second):
 		}
 	}
@@ -473,6 +495,7 @@ func (s *Service) InitPoints(ctx context.Context) error {
 	}
 	return s.runJob(ctx, "init-points", func(progress func(int, int)) error {
 		for _, kind := range []protocol.Kind{protocol.MP, protocol.SP} {
+			since := s.writeMark()
 			pts, err := c.ReadAll(ctx, kind, progress)
 			if err != nil {
 				return err
@@ -485,7 +508,7 @@ func (s *Service) InitPoints(ctx context.Context) error {
 				s.meta[kind][p.ID] = p
 				if kind == protocol.MP {
 					s.snap.MP[p.ID] = p.Val
-				} else {
+				} else if !s.writtenSince(p.ID, since) {
 					s.snap.SP[p.ID] = p.Val
 				}
 			}

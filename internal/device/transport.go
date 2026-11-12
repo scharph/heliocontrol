@@ -2,10 +2,12 @@ package device
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
+	"syscall"
 	"time"
 
 	"go.bug.st/serial"
@@ -56,7 +58,14 @@ func openTransport(ctx context.Context, c TransportConfig) (io.ReadWriteCloser, 
 			return nil, fmt.Errorf("no host configured")
 		}
 		d := net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
-		return d.DialContext(ctx, "tcp", net.JoinHostPort(c.Host, strconv.Itoa(c.Port)))
+		conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(c.Host, strconv.Itoa(c.Port)))
+		if err != nil {
+			if isRefused(err) {
+				return nil, fmt.Errorf("%w (%v)", ErrRefused, err)
+			}
+			return nil, err
+		}
+		return conn, nil
 	case "serial":
 		if c.Serial == "" {
 			return nil, fmt.Errorf("no serial port configured")
@@ -69,6 +78,23 @@ func openTransport(ctx context.Context, c TransportConfig) (io.ReadWriteCloser, 
 	default:
 		return nil, fmt.Errorf("unknown transport %q", c.Type)
 	}
+}
+
+// ErrRefused is returned when the modem actively refuses the TCP connection.
+// It accepts a single session, so this almost always means the session is taken.
+var ErrRefused = errors.New("modem busy: it accepts only one session and refused this one - " +
+	"another client (homeControl or a second heliocontrol) is connected, or the modem still holds a stale session")
+
+// wsaeConnRefused is Windows' WSAECONNREFUSED, which package syscall does not
+// map to ECONNREFUSED.
+const wsaeConnRefused = syscall.Errno(10061)
+
+func isRefused(err error) bool {
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return errno == syscall.ECONNREFUSED || errno == wsaeConnRefused
+	}
+	return false
 }
 
 // SerialPorts lists the serial ports present on this machine.

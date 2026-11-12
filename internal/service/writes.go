@@ -130,6 +130,20 @@ func (s *Service) writeSP(ctx context.Context, id int, v float64, restore bool) 
 func (s *Service) setSP(id int, v float64) {
 	s.mu.Lock()
 	s.snap.SP[id] = v
+	s.writeSeq++
+	s.spWritten[id] = s.writeSeq
 	s.mu.Unlock()
 	s.Bus.Publish(Event{Type: "values", Data: s.Values()})
 }
+
+// writeMark is taken before reading setup points from the controller; pass it
+// to writtenSince when storing the values read.
+func (s *Service) writeMark() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.writeSeq
+}
+
+// writtenSince reports whether SP id was written after mark was taken, which
+// makes a value read since then stale. Callers hold s.mu.
+func (s *Service) writtenSince(id int, mark uint64) bool { return s.spWritten[id] > mark }
