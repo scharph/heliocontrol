@@ -31,6 +31,7 @@ func (s *Service) poll(ctx context.Context, c *device.Client, full bool) error {
 	mps, sps := catalog.Points(s.snap.Panels)
 	read := catalog.VolatilePoints(s.snap.Panels)
 	full = full || time.Since(s.lastSettings) >= settingsInterval
+	since := s.writeSeq
 	s.mu.RUnlock()
 	if full {
 		read = sps
@@ -47,6 +48,9 @@ func (s *Service) poll(ctx context.Context, c *device.Client, full bool) error {
 	s.mu.Lock()
 	maps.Copy(s.snap.MP, vals)
 	for id, p := range pts {
+		if s.writtenSince(id, since) {
+			continue // written while this poll ran: the cached value is newer
+		}
 		s.snap.SP[id] = p.Val
 		s.meta[protocol.SP][id] = mergeMeta(s.meta[protocol.SP][id], p)
 	}

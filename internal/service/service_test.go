@@ -265,3 +265,18 @@ func TestTemporarySetpointSurvivesRestart(t *testing.T) {
 		t.Fatal("expired override not restored after restart")
 	}
 }
+
+func TestRetryDelay(t *testing.T) {
+	// consecutive failed attempts back off up to the maximum
+	backoff := minBackoff
+	var wait time.Duration
+	for _, want := range []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second, time.Minute, time.Minute} {
+		if wait, backoff = retryDelay(backoff, false); wait != want {
+			t.Fatalf("wait %v, want %v", wait, want)
+		}
+	}
+	// a session that was online retries quickly again, however long the backoff had grown
+	if wait, backoff = retryDelay(backoff, true); wait != minBackoff || backoff != 2*minBackoff {
+		t.Fatalf("after an online session: wait %v, next %v", wait, backoff)
+	}
+}

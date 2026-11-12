@@ -176,3 +176,16 @@ func TestDisconnectDetected(t *testing.T) {
 		t.Fatal("expected error on closed client")
 	}
 }
+
+func TestRefusedConnectionIsReportedAsBusy(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close() // nothing listens here any more: the connection is refused
+	_, err = Dial(context.Background(), TransportConfig{Host: "127.0.0.1", Port: port}, nil)
+	if !errors.Is(err, ErrRefused) {
+		t.Fatalf("expected ErrRefused, got %v", err)
+	}
+}
